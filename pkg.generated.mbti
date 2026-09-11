@@ -1,0 +1,61 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "chenqi-arch/moonbit-project"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/core/json",
+}
+
+// Values
+pub const CURRENT_FORMAT_VERSION : Int = 1
+
+pub fn example_cassette() -> Cassette
+
+// Errors
+pub(all) suberror CassetteError {
+  InvalidJson
+  InvalidSchema
+  UnsupportedVersion(Int)
+} derive(Eq, @debug.Debug)
+
+// Types and methods
+pub(all) enum Body {
+  Empty
+  Text(String)
+  Base64(String)
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct Cassette {
+  format_version : Int
+  interactions : Array[Interaction]
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn Cassette::decode(String) -> Self raise CassetteError
+pub fn Cassette::empty() -> Self
+pub fn Cassette::encode(Self) -> String
+
+pub(all) struct Header {
+  name : String
+  value : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct Interaction {
+  request : Request
+  response : Response
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct Request {
+  method : String
+  url : String
+  headers : Array[Header]
+  body : Body
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct Response {
+  status : Int
+  headers : Array[Header]
+  body : Body
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+// Type aliases
+
+// Traits

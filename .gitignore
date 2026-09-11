@@ -1,0 +1,13 @@
+# MoonBit build outputs
+_build/
+.mooncakes/
+
+# Local toolchain and probe projects
+.tools/
+work/
+
+# Editor and operating-system noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
