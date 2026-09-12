@@ -110,6 +110,18 @@ pub fn Session::send(
 }
 
 ///|
+/// Explain why a request would miss the current cassette.
+pub fn Session::diagnose(self : Session, request : Request) -> MismatchReport {
+  diagnose_mismatch_with_redaction(
+    request,
+    self.cassette,
+    self.config,
+    self.consumed,
+    self.redaction,
+  )
+}
+
+///|
 /// Return the cassette, including interactions recorded so far.
 pub fn Session::cassette(self : Session) -> Cassette {
   self.cassette

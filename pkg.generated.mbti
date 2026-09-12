@@ -11,6 +11,10 @@ pub const CURRENT_FORMAT_VERSION : Int = 1
 
 pub const REDACTION_MARKER : String = "[REDACTED]"
 
+pub fn diagnose_mismatch(Request, Cassette, MatchConfig, Array[Bool]) -> MismatchReport
+
+pub fn diagnose_mismatch_with_redaction(Request, Cassette, MatchConfig, Array[Bool], RedactionConfig) -> MismatchReport
+
 pub fn example_cassette() -> Cassette
 
 pub fn match_candidates(Request, Cassette, MatchConfig, Array[Bool]) -> Array[MatchCandidate]
@@ -83,6 +87,30 @@ pub(all) enum MatchResult {
   NoMatch(Array[MatchCandidate])
 } derive(Eq, @debug.Debug)
 
+pub(all) struct Mismatch {
+  candidate_index : Int
+  kind : MismatchKind
+  expected : String
+  actual : String
+} derive(Eq, @debug.Debug)
+
+pub(all) enum MismatchKind {
+  NoCandidate
+  Method
+  Url
+  Query
+  Headers
+  Body
+  Sequence
+} derive(Eq, @debug.Debug)
+pub fn MismatchKind::label(Self) -> String
+
+pub(all) struct MismatchReport {
+  request_key : String
+  differences : Array[Mismatch]
+} derive(Eq, @debug.Debug)
+pub fn MismatchReport::summary(Self) -> String
+
 pub(all) struct RedactionConfig {
   headers : Array[String]
   query_parameters : Array[String]
@@ -117,6 +145,7 @@ pub(all) struct Session {
   mut consumed : Array[Bool]
 } derive(@debug.Debug)
 pub fn Session::cassette(Self) -> Cassette
+pub fn Session::diagnose(Self, Request) -> MismatchReport
 pub fn Session::new(Cassette, SessionMode, MatchConfig) -> Self
 pub fn Session::new_with_redaction(Cassette, SessionMode, MatchConfig, RedactionConfig) -> Self
 pub fn Session::send(Self, Request, (Request) -> Result[Response, TransportError]) -> Result[Response, SessionError]
