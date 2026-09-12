@@ -1,6 +1,6 @@
-# MoonVCR 发布前检查清单
+# MoonVCR 发布与比赛提交检查清单
 
-这份清单记录 0.1.0 版本在提交 Mooncakes 或比赛报名之前必须复核的事项。它只描述仓库中已经存在并能运行的能力，不把规划中的功能写成已完成。
+这份清单记录 0.1.0 版本发布和比赛报名的最终核验结果。它只描述仓库中已经存在并能运行的能力，不把规划中的功能写成已完成。
 
 ## 当前包信息
 
@@ -12,7 +12,7 @@
 | 仓库 | https://github.com/chenqi-arch/moonbit-project |
 | 包入口 | 根包，导入别名可使用 @moonvcr |
 
-moon.mod 已声明上述元数据。版本发布后，消费者可以使用 moon add chenqi-arch/moonbit-project@0.1.0 添加依赖。
+moon.mod 已声明上述元数据。版本已发布，消费者可以使用 moon add chenqi-arch/moonbit-project@0.1.0 添加依赖。
 
 ## 本地验收命令
 
@@ -34,24 +34,24 @@ git status --short --branch
 - moon test 应保持 42 个测试全部通过；
 - demo 应输出 offline replay status=200，证明 strict-offline 回放没有调用 transport；
 - moon package --list 应能生成并列出发布归档，归档中包含许可证、README、根包源码、测试、demo 和 specs 文档；
-- git diff --check 不应发现空白错误，提交前工作树应干净。
+- git diff --check 不应发现空白错误，提交前代码工作树应干净；报名用申报书文件可以在仓库外单独保存。
 
-## Mooncakes 预演与正式发布
+## Mooncakes 预演与正式发布记录
 
-发布前可以先运行：
+发布前预演命令（已执行）：
 
 ~~~text
 moon publish --dry-run --frozen
 ~~~
 
-当前机器如果尚未登录 Mooncakes，该命令会在凭据检查处停止；这不是代码或元数据校验失败。需要发布时，由维护者先完成账号登录，再重新运行预演并人工检查归档内容：
+预演完成后，维护者完成 Mooncakes 登录并执行正式发布：
 
 ~~~text
 moon login
 moon publish --frozen
 ~~~
 
-正式 moon publish 会产生外部注册表变更，本仓库的自动化验收不会代替维护者执行。发布后应从一个干净的临时 MoonBit 项目执行 moon add chenqi-arch/moonbit-project@0.1.0，再运行该项目的检查和测试，确认消费者路径可用。
+正式发布结果：服务器返回 200 OK。随后已从隔离临时项目执行 moon fetch chenqi-arch/moonbit-project@0.1.0，消费者下载验证成功；moon search 也能返回公开的 0.1.0 版本。
 
 ## 比赛提交前复核
 
