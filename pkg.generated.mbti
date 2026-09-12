@@ -88,6 +88,32 @@ pub(all) struct Response {
   body : Body
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) struct Session {
+  mut cassette : Cassette
+  config : MatchConfig
+  mode : SessionMode
+  mut consumed : Array[Bool]
+} derive(@debug.Debug)
+pub fn Session::cassette(Self) -> Cassette
+pub fn Session::new(Cassette, SessionMode, MatchConfig) -> Self
+pub fn Session::send(Self, Request, (Request) -> Result[Response, TransportError]) -> Result[Response, SessionError]
+pub fn Session::with_defaults(Cassette, SessionMode) -> Self
+
+pub(all) enum SessionError {
+  ReplayMiss(Array[MatchCandidate])
+  TransportFailed(TransportError)
+} derive(Eq, @debug.Debug)
+
+pub(all) enum SessionMode {
+  Record
+  Replay
+  StrictOffline
+} derive(Eq, @debug.Debug)
+
+pub(all) enum TransportError {
+  Failed(String)
+} derive(Eq, @debug.Debug)
+
 // Type aliases
 
 // Traits
