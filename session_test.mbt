@@ -113,6 +113,14 @@ test "record stores a redacted interaction but returns the real response" {
         Text(text) => assert_true(!text.contains("real-token"))
         _ => assert_true(false)
       }
+      let replay = Session::with_defaults(session.cassette(), Replay)
+      let no_network = (_ : Request) => {
+        Err(TransportError::Failed("network must not be called"))
+      }
+      match replay.send(request, no_network) {
+        Ok(replayed) => assert_eq(replayed.status, 200)
+        Err(_) => assert_true(false)
+      }
     }
   }
 }

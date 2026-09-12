@@ -89,12 +89,22 @@ pub fn Session::send(
         Err(error) => Err(TransportFailed(error))
       }
     Replay | StrictOffline =>
-      match match_request(request, self.cassette, self.config, self.consumed) {
-        Matched(index) => {
-          self.consumed[index] = true
-          Ok(self.cassette.interactions[index].response)
-        }
-        NoMatch(candidates) => Err(ReplayMiss(candidates))
+      match redact_request(request, self.redaction) {
+        Err(error) => Err(RedactionFailed(error))
+        Ok(safe_request) =>
+          match
+            match_request(
+              safe_request,
+              self.cassette,
+              self.config,
+              self.consumed,
+            ) {
+            Matched(index) => {
+              self.consumed[index] = true
+              Ok(self.cassette.interactions[index].response)
+            }
+            NoMatch(candidates) => Err(ReplayMiss(candidates))
+          }
       }
   }
 }
