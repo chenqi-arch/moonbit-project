@@ -4,7 +4,7 @@
 
 MoonVCR 将经过允许的 HTTP 请求与响应保存为可审阅的 cassette，并在开发和 CI 中离线回放。它面向需要稳定、可重复测试的 MoonBit SDK、服务端和内部 API。
 
-当前版本正在按垂直切片开发。第一批内容已经包含：
+0.1.0 核心版本已经完成一条可运行的闭环：调用方显式提供 transport，MoonVCR 负责记录、脱敏、回放和离线诊断。当前版本已经包含：
 
 - 版本化的请求、响应、请求头、请求体、交互和 cassette 模型；
 - 确定性 JSON 编码与解码；
@@ -16,6 +16,32 @@ MoonVCR 将经过允许的 HTTP 请求与响应保存为可审阅的 cassette，
 - 不泄露原文的字段级 mismatch 诊断；
 - 有限响应脚本 transport 与无网络可运行示例；
 - 无网络即可运行的核心测试。
+
+## 安装与最小用法
+
+Mooncakes 发布完成后，在你的 MoonBit 项目中添加 0.1.0 版本：
+
+~~~text
+moon add chenqi-arch/moonbit-project@0.1.0
+~~~
+
+在代码中导入根包并创建会话：
+
+~~~mbt
+import { "chenqi-arch/moonbit-project" @moonvcr, }
+
+let cassette = @moonvcr.Cassette::decode(cassette_text)
+let session = @moonvcr.Session::with_defaults(
+  cassette,
+  @moonvcr.SessionMode::StrictOffline,
+)
+let result = session.send(
+  request,
+  offline_transport,
+)
+~~~
+
+上面是 API 轮廓，cassette_text、request 和 offline_transport 由调用方提供；可直接运行的完整版本见 cmd/moonvcr-demo。回放只依赖内存中的 cassette 文本，不会因为回放未命中而偷偷联网。录制时则由调用方把现有 HTTP 客户端封装成 transport，并明确决定何时访问真实网络。
 
 ## 本地验证
 
