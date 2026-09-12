@@ -137,6 +137,14 @@ pub(all) struct Response {
   body : Body
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) struct ScriptedTransport {
+  responses : Array[Response]
+  mut cursor : Int
+} derive(@debug.Debug)
+pub fn ScriptedTransport::new(Array[Response]) -> Self
+pub fn ScriptedTransport::remaining(Self) -> Int
+pub fn ScriptedTransport::send(Self, Request) -> Result[Response, TransportError]
+
 pub(all) struct Session {
   mut cassette : Cassette
   config : MatchConfig
