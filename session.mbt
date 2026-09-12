@@ -17,6 +17,7 @@ pub(all) enum TransportError {
 pub(all) enum SessionError {
   ReplayMiss(Array[MatchCandidate])
   TransportFailed(TransportError)
+  RedactionFailed(RedactionError)
 } derive(Eq, @debug.Debug)
 
 ///|
@@ -24,6 +25,7 @@ pub(all) enum SessionError {
 pub(all) struct Session {
   mut cassette : Cassette
   config : MatchConfig
+  redaction : RedactionConfig
   mode : SessionMode
   mut consumed : Array[Bool]
 } derive(@debug.Debug)
@@ -35,8 +37,24 @@ pub fn Session::new(
   mode : SessionMode,
   config : MatchConfig,
 ) -> Session {
+  Session::new_with_redaction(
+    cassette,
+    mode,
+    config,
+    RedactionConfig::default(),
+  )
+}
+
+///|
+/// Create a session with explicit matching and redaction policies.
+pub fn Session::new_with_redaction(
+  cassette : Cassette,
+  mode : SessionMode,
+  config : MatchConfig,
+  redaction : RedactionConfig,
+) -> Session {
   let count = cassette.interactions.length()
-  { cassette, config, mode, consumed: Array::make(count, false), }
+  { cassette, config, redaction, mode, consumed: Array::make(count, false), }
 }
 
 ///|
@@ -59,8 +77,14 @@ pub fn Session::send(
     Record =>
       match transport(request) {
         Ok(response) => {
-          self.cassette.interactions.push({ request, response, })
-          Ok(response)
+          let interaction = { request, response, }
+          match redact_interaction(interaction, self.redaction) {
+            Ok(safe_interaction) => {
+              self.cassette.interactions.push(safe_interaction)
+              Ok(response)
+            }
+            Err(error) => Err(RedactionFailed(error))
+          }
         }
         Err(error) => Err(TransportFailed(error))
       }

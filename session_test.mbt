@@ -77,3 +77,60 @@ test "transport errors are typed" {
     Err(_) => assert_true(false)
   }
 }
+
+///|
+test "record stores a redacted interaction but returns the real response" {
+  let request : Request = {
+    method: "GET",
+    url: "https://example.test/items?token=real-token",
+    headers: [{ name: "Authorization", value: "Bearer real-token", }],
+    body: Empty,
+  }
+  let real_response : Response = {
+    status: 200,
+    headers: [{ name: "Set-Cookie", value: "session=real-cookie", }],
+    body: Text("{\u{22}token\u{22}:\u{22}real-token\u{22},\u{22}ok\u{22}:true}"),
+  }
+  let session = Session::new_with_redaction(
+    Cassette::empty(),
+    Record,
+    MatchConfig::default(),
+    { headers: [], query_parameters: [], json_paths: ["/token"], },
+  )
+  let transport = (_ : Request) => Ok(real_response)
+  match session.send(request, transport) {
+    Err(_) => assert_true(false)
+    Ok(response) => {
+      assert_eq(response.body, real_response.body)
+      let saved = session.cassette().interactions[0]
+      assert_eq(
+        saved.request.url,
+        "https://example.test/items?token=[REDACTED]",
+      )
+      assert_eq(saved.request.headers[0].value, REDACTION_MARKER)
+      assert_eq(saved.response.headers[0].value, REDACTION_MARKER)
+      match saved.response.body {
+        Text(text) => assert_true(!text.contains("real-token"))
+        _ => assert_true(false)
+      }
+    }
+  }
+}
+
+///|
+test "redaction failure does not append an interaction" {
+  let session = Session::new_with_redaction(
+    Cassette::empty(),
+    Record,
+    MatchConfig::default(),
+    { headers: [], query_parameters: [], json_paths: ["/required"], },
+  )
+  let request = session_request("https://example.test")
+  let response : Response = { status: 200, headers: [], body: Text("{}"), }
+  let transport = (_ : Request) => Ok(response)
+  match session.send(request, transport) {
+    Err(RedactionFailed(MissingPath(path))) => assert_eq(path, "/required")
+    _ => assert_true(false)
+  }
+  assert_eq(session.cassette().interactions.length(), 0)
+}

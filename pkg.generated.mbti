@@ -9,6 +9,8 @@ import {
 // Values
 pub const CURRENT_FORMAT_VERSION : Int = 1
 
+pub const REDACTION_MARKER : String = "[REDACTED]"
+
 pub fn example_cassette() -> Cassette
 
 pub fn match_candidates(Request, Cassette, MatchConfig, Array[Bool]) -> Array[MatchCandidate]
@@ -18,6 +20,12 @@ pub fn match_request(Request, Cassette, MatchConfig, Array[Bool]) -> MatchResult
 pub fn normalize_request(Request, MatchConfig) -> String
 
 pub fn normalize_url(String) -> String
+
+pub fn redact_interaction(Interaction, RedactionConfig) -> Result[Interaction, RedactionError]
+
+pub fn redact_request(Request, RedactionConfig) -> Result[Request, RedactionError]
+
+pub fn redact_response(Response, RedactionConfig) -> Result[Response, RedactionError]
 
 pub fn request_match_key(Request, MatchConfig) -> String
 
@@ -75,6 +83,19 @@ pub(all) enum MatchResult {
   NoMatch(Array[MatchCandidate])
 } derive(Eq, @debug.Debug)
 
+pub(all) struct RedactionConfig {
+  headers : Array[String]
+  query_parameters : Array[String]
+  json_paths : Array[String]
+} derive(Eq, @debug.Debug)
+pub fn RedactionConfig::default() -> Self
+
+pub(all) enum RedactionError {
+  InvalidJson(String)
+  InvalidPath(String)
+  MissingPath(String)
+} derive(Eq, @debug.Debug)
+
 pub(all) struct Request {
   method : String
   url : String
@@ -91,17 +112,20 @@ pub(all) struct Response {
 pub(all) struct Session {
   mut cassette : Cassette
   config : MatchConfig
+  redaction : RedactionConfig
   mode : SessionMode
   mut consumed : Array[Bool]
 } derive(@debug.Debug)
 pub fn Session::cassette(Self) -> Cassette
 pub fn Session::new(Cassette, SessionMode, MatchConfig) -> Self
+pub fn Session::new_with_redaction(Cassette, SessionMode, MatchConfig, RedactionConfig) -> Self
 pub fn Session::send(Self, Request, (Request) -> Result[Response, TransportError]) -> Result[Response, SessionError]
 pub fn Session::with_defaults(Cassette, SessionMode) -> Self
 
 pub(all) enum SessionError {
   ReplayMiss(Array[MatchCandidate])
   TransportFailed(TransportError)
+  RedactionFailed(RedactionError)
 } derive(Eq, @debug.Debug)
 
 pub(all) enum SessionMode {
