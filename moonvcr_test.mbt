@@ -20,7 +20,7 @@ test "cassette json round trip is stable" {
 /// Field ordering and the final newline are part of the reviewable format.
 test "cassette encoding is reviewable text" {
   let encoded = example_cassette().encode()
-  assert_true(encoded.ends_with("\n"))
+  assert_true(encoded.has_suffix("\n"))
   assert_true(encoded.contains("\"format_version\""))
   assert_true(encoded.contains("\"interactions\""))
   assert_true(encoded.contains("\"method\":\"GET\""))
