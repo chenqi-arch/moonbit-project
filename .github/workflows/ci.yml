@@ -26,8 +26,14 @@ jobs:
       - name: Check
         run: moon check
 
+      - name: Build
+        run: moon build
+
       - name: Test
         run: moon test
 
       - name: Formatting
         run: moon fmt --check
+
+      - name: Offline example
+        run: moon run cmd/moonvcr-demo

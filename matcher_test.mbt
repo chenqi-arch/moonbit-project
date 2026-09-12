@@ -82,3 +82,59 @@ test "matcher reports unconsumed candidates on miss" {
     }
   }
 }
+
+///|
+test "matcher honors body ignore policy" {
+  let expected = matcher_request("https://example.test/items")
+  let expected = { ..expected, body: Text("expected"), }
+  let actual = { ..expected, body: Text("actual"), }
+  let cassette : Cassette = {
+    format_version: CURRENT_FORMAT_VERSION,
+    interactions: [{ request: expected, response: matcher_response(200), }],
+  }
+  let ignore_body : MatchConfig = {
+    include_headers: [],
+    ignore_headers: [],
+    body_mode: Ignore,
+  }
+  match match_request(actual, cassette, ignore_body, [false]) {
+    Matched(index) => assert_eq(index, 0)
+    NoMatch(_) => assert_true(false)
+  }
+  match match_request(actual, cassette, MatchConfig::default(), [false]) {
+    Matched(_) => assert_true(false)
+    NoMatch(_) => assert_true(true)
+  }
+}
+
+///|
+test "matcher honors included and ignored headers" {
+  let expected = matcher_request("https://example.test/items")
+  let expected = {
+    ..expected,
+    headers: [
+      { name: "Accept", value: "application/json", },
+      { name: "X-Trace", value: "expected", },
+    ],
+  }
+  let actual = {
+    ..expected,
+    headers: [
+      { name: "accept", value: "application/json", },
+      { name: "x-trace", value: "actual", },
+    ],
+  }
+  let cassette : Cassette = {
+    format_version: CURRENT_FORMAT_VERSION,
+    interactions: [{ request: expected, response: matcher_response(200), }],
+  }
+  let config : MatchConfig = {
+    include_headers: ["accept", "x-trace"],
+    ignore_headers: ["x-trace"],
+    body_mode: Exact,
+  }
+  match match_request(actual, cassette, config, [false]) {
+    Matched(index) => assert_eq(index, 0)
+    NoMatch(_) => assert_true(false)
+  }
+}

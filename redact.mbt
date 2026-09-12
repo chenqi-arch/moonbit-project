@@ -159,9 +159,9 @@ fn parse_redaction_path(path : String) -> Result[Array[String], RedactionError] 
   if trimmed.length() == 0 || trimmed == "$" {
     return Err(InvalidPath(path + ""))
   }
-  if trimmed.starts_with("/") {
+  if trimmed.has_prefix("/") {
     let tokens : Array[String] = []
-    let tail = trimmed.substring(start=1)
+    let tail = trimmed[1:].to_owned()
     for raw in tail.split("/") {
       match decode_pointer_token(raw, path + "") {
         Ok(token) => tokens.push(token)
@@ -170,9 +170,9 @@ fn parse_redaction_path(path : String) -> Result[Array[String], RedactionError] 
     }
     return Ok(tokens)
   }
-  let shorthand = if trimmed.starts_with("$.") {
-    trimmed.substring(start=2)
-  } else if trimmed.starts_with("$") {
+  let shorthand = if trimmed.has_prefix("$.") {
+    trimmed[2:].to_owned()
+  } else if trimmed.has_prefix("$") {
     return Err(InvalidPath(path + ""))
   } else {
     trimmed

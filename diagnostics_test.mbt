@@ -147,3 +147,66 @@ test "session exposes the same structured diagnostics" {
   )
   assert_eq(report.differences[0].kind, Method)
 }
+
+///|
+test "diagnostics reuse ignored header and body matching rules" {
+  let expected = diagnostic_request(
+    "POST",
+    "https://example.test/items",
+    [{ name: "X-Trace", value: "expected", }],
+    Text("expected body"),
+  )
+  let actual = diagnostic_request(
+    "POST",
+    "https://example.test/items",
+    [{ name: "x-trace", value: "actual", }],
+    Text("actual body"),
+  )
+  let config : MatchConfig = {
+    include_headers: [],
+    ignore_headers: ["x-trace"],
+    body_mode: Ignore,
+  }
+  let report = diagnose_mismatch(
+    actual,
+    diagnostic_cassette(expected),
+    config,
+    [false],
+  )
+  assert_eq(report.differences.length(), 0)
+}
+
+///|
+test "diagnostics reuse configured JSON redaction paths" {
+  let expected = diagnostic_request(
+    "POST",
+    "https://example.test/items",
+    [],
+    Text(
+      "{\u{22}credentials\u{22}:{\u{22}token\u{22}:\u{22}expected\u{22},\u{22}ok\u{22}:true}",
+    ),
+  )
+  let actual = diagnostic_request(
+    "POST",
+    "https://example.test/items",
+    [],
+    Text(
+      "{\u{22}credentials\u{22}:{\u{22}token\u{22}:\u{22}actual\u{22},\u{22}ok\u{22}:true}",
+    ),
+  )
+  let redaction : RedactionConfig = {
+    headers: [],
+    query_parameters: [],
+    json_paths: ["/credentials/token"],
+  }
+  let report = diagnose_mismatch_with_redaction(
+    actual,
+    diagnostic_cassette(expected),
+    MatchConfig::default(),
+    [false],
+    redaction,
+  )
+  assert_eq(report.differences.length(), 0)
+  assert_true(!report.summary().contains("expected"))
+  assert_true(!report.summary().contains("actual"))
+}

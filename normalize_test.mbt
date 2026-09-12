@@ -50,3 +50,23 @@ test "can ignore request body" {
   }
   assert_true(normalize_request(request, config).has_suffix("\nbody="))
 }
+
+///|
+test "normalizes bare and duplicate query pairs deterministically" {
+  assert_eq(
+    normalize_url("https://example.test/items?b&a=2&a=1"),
+    "https://example.test/items?b=&a=1&a=2",
+  )
+}
+
+///|
+test "keeps base64 body kind in exact matching keys" {
+  let request : Request = {
+    method: "POST",
+    url: "https://example.test/upload",
+    headers: [],
+    body: Base64("AAEC"),
+  }
+  let key = normalize_request(request, MatchConfig::default())
+  assert_true(key.contains("body=base64:4:AAEC"))
+}

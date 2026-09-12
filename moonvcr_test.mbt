@@ -50,3 +50,35 @@ test "malformed cassette is rejected" {
   }
   assert_eq(result, None)
 }
+
+///|
+test "invalid cassette schema is rejected" {
+  let result = Some(
+    Cassette::decode(
+      "{\u{22}format_version\u{22}:1,\u{22}interactions\u{22}:{}}",
+    ),
+  ) catch {
+    InvalidSchema => None
+    _ => None
+  }
+  assert_eq(result, None)
+}
+
+///|
+test "base64 bodies round trip without reinterpretation" {
+  let cassette : Cassette = {
+    format_version: CURRENT_FORMAT_VERSION,
+    interactions: [
+      {
+        request: {
+          method: "POST",
+          url: "https://example.test/upload",
+          headers: [],
+          body: Base64("AAEC"),
+        },
+        response: { status: 201, headers: [], body: Base64("AP8="), },
+      },
+    ],
+  }
+  assert_eq(Cassette::decode(cassette.encode()), cassette)
+}

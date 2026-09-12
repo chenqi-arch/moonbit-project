@@ -142,3 +142,70 @@ test "redaction failure does not append an interaction" {
   }
   assert_eq(session.cassette().interactions.length(), 0)
 }
+
+///|
+test "replay applies the same custom JSON redaction view" {
+  let recorded_request : Request = {
+    method: "POST",
+    url: "https://example.test/items",
+    headers: [],
+    body: Text(
+      "{\u{22}credentials\u{22}:{\u{22}token\u{22}:\u{22}[REDACTED]\u{22}}}",
+    ),
+  }
+  let cassette : Cassette = {
+    format_version: CURRENT_FORMAT_VERSION,
+    interactions: [
+      { request: recorded_request, response: session_response(202), },
+    ],
+  }
+  let redaction : RedactionConfig = {
+    headers: [],
+    query_parameters: [],
+    json_paths: ["/credentials/token"],
+  }
+  let session = Session::new_with_redaction(
+    cassette,
+    StrictOffline,
+    MatchConfig::default(),
+    redaction,
+  )
+  let request : Request = {
+    method: "POST",
+    url: "https://example.test/items",
+    headers: [],
+    body: Text(
+      "{\u{22}credentials\u{22}:{\u{22}token\u{22}:\u{22}real-token\u{22}}}",
+    ),
+  }
+  let no_network = (_ : Request) => {
+    Err(TransportError::Failed("network must not be called"))
+  }
+  match session.send(request, no_network) {
+    Ok(response) => assert_eq(response.status, 202)
+    Err(_) => assert_true(false)
+  }
+}
+
+///|
+test "replay redaction failure is typed and does not call transport" {
+  let session = Session::new_with_redaction(
+    Cassette::empty(),
+    Replay,
+    MatchConfig::default(),
+    { headers: [], query_parameters: [], json_paths: ["/required"], },
+  )
+  let request : Request = {
+    method: "POST",
+    url: "https://example.test",
+    headers: [],
+    body: Text("{}"),
+  }
+  let should_not_run = (_ : Request) => {
+    Err(TransportError::Failed("transport must not run"))
+  }
+  match session.send(request, should_not_run) {
+    Err(RedactionFailed(MissingPath(path))) => assert_eq(path, "/required")
+    _ => assert_true(false)
+  }
+}
