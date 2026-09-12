@@ -11,9 +11,15 @@ pub const CURRENT_FORMAT_VERSION : Int = 1
 
 pub fn example_cassette() -> Cassette
 
+pub fn match_candidates(Request, Cassette, MatchConfig, Array[Bool]) -> Array[MatchCandidate]
+
+pub fn match_request(Request, Cassette, MatchConfig, Array[Bool]) -> MatchResult
+
 pub fn normalize_request(Request, MatchConfig) -> String
 
 pub fn normalize_url(String) -> String
+
+pub fn request_match_key(Request, MatchConfig) -> String
 
 // Errors
 pub(all) suberror CassetteError {
@@ -52,12 +58,22 @@ pub(all) struct Interaction {
   response : Response
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) struct MatchCandidate {
+  index : Int
+  key : String
+} derive(Eq, @debug.Debug)
+
 pub(all) struct MatchConfig {
   include_headers : Array[String]
   ignore_headers : Array[String]
   body_mode : BodyMatchMode
 } derive(Eq, @debug.Debug)
 pub fn MatchConfig::default() -> Self
+
+pub(all) enum MatchResult {
+  Matched(Int)
+  NoMatch(Array[MatchCandidate])
+} derive(Eq, @debug.Debug)
 
 pub(all) struct Request {
   method : String
