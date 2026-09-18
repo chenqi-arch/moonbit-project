@@ -1,6 +1,6 @@
 # MoonVCR 0.2.0 发布与比赛复核清单
 
-这份清单只记录当前源码能够复验的内容。0.1.0 是此前已经发布的基线版本；0.2.0 包含响应契约校验和可靠性测试整改，当前先在本地验证，正式发布前不得把它写成已发布事实。
+这份清单记录 0.2.0 从本地验收到正式发布的可复验结果。0.1.0 是此前已经发布的基线版本；0.2.0 包含响应契约校验和可靠性测试整改，已通过 GitHub CI、Mooncakes 发布和隔离消费者安装验证。
 
 ## 当前包信息
 
@@ -37,14 +37,17 @@ git status --short --branch
 
 完整测试矩阵见 [RELIABILITY_ACCEPTANCE.md](RELIABILITY_ACCEPTANCE.md)。
 
-## 发布顺序
+## 发布过程与结果
 
-1. 在干净的 Windows PowerShell 环境完成上述本地验收。
-2. 检查 `moon.mod`、README、申报书和报名表使用同一个版本号 `0.2.0`。
-3. 创建一条有实际内容的普通 Git 提交，不修改既有历史。
-4. 推送 `main` 后核对 GitHub 文件、提交历史和 CI 结果。
-5. 登录 Mooncakes，先执行 `moon publish --dry-run --frozen`，确认包清单无私人材料。
-6. 执行 `moon publish --frozen`，再用隔离项目执行 `moon fetch chenqi-arch/moonbit-project@0.2.0` 验证消费者安装。
+1. 已在干净的 Windows PowerShell 环境完成本地验收。
+2. 已检查 `moon.mod`、README、申报材料和报名信息使用同一个版本号 `0.2.0`。
+3. 已创建有实际内容的普通 Git 提交，没有修改既有历史。
+4. 已推送 `main`，GitHub Actions `MoonVCR CI` 运行成功。
+5. 已执行 `moon publish --dry-run --frozen`；服务端返回 `202 Accepted`，明确表示 dry-run 成功且未产生变更。
+6. 已执行 `moon publish --frozen`，服务端返回 `200 OK`，正式发布 `chenqi-arch/moonbit-project@0.2.0`。
+7. 已在隔离消费者项目执行 `moon fetch chenqi-arch/moonbit-project@0.2.0`、`moon add`、`moon check`，并运行导入 smoke test 成功。
+
+正式发布证据：Git commit `f696d26`，GitHub Actions run `35334754331`，Mooncakes 服务端 `200 OK`；消费者运行输出 `consumer import ok: MoonVCR 0.2.0`。
 
 ## 比赛材料边界
 

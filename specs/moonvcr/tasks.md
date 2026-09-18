@@ -123,7 +123,7 @@
 
 ### M4：可提交的仓库
 
-完成 T10-T11，CI、README、许可证、MoonBit 包元数据、发布清单、Git 历史和 0.1.0 基线发布均已完成；0.2.0 整改候选版的发布仍由阶段2后的最终发布阶段负责。
+完成 T10-T11，CI、README、许可证、MoonBit 包元数据、发布清单、Git 历史和 0.1.0 基线发布均已完成；0.2.0 整改版已在最终发布阶段完成 Mooncakes 发布和隔离消费者验证。
 
 申报书放在 M3 之后编写，内容只描述仓库中已经存在且可运行的功能，不提前承诺未实现能力。
 
@@ -159,3 +159,17 @@
   - 将含联系方式的本地申报书排除出 Git 和 Mooncakes 包。
   - 发布前用包清单和状态检查确认边界。
   - _Requirement: 11 / EARS 2-4_
+
+## 阶段3：正式发布与消费者验收
+
+- [x] P01 GitHub 与 CI 发布
+  - 推送真实普通提交 `f696d26`，GitHub Actions `MoonVCR CI` 运行成功。
+  - _Evidence: run `35334754331`_
+
+- [x] P02 Mooncakes 正式发布
+  - dry-run 服务端返回 `202 Accepted`；正式发布服务端返回 `200 OK`。
+  - _Evidence: `chenqi-arch/moonbit-project@0.2.0`_
+
+- [x] P03 隔离消费者验收
+  - 全新 MoonBit 项目成功执行 `moon fetch`、`moon add`、`moon check`，并运行公开 API 导入 smoke test。
+  - _Requirement: 11 / EARS 5-6_

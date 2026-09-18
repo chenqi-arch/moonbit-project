@@ -20,7 +20,7 @@ MoonVCR 将经过允许的 HTTP 请求与响应保存为可审阅的 cassette，
 
 ## 安装与最小用法
 
-Mooncakes 发布完成后，在你的 MoonBit 项目中添加 0.2.0 版本：
+Mooncakes `0.2.0` 已正式发布，可在你的 MoonBit 项目中直接添加：
 
 ~~~text
 moon add chenqi-arch/moonbit-project@0.2.0
