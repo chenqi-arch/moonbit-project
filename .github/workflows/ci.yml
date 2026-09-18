@@ -37,3 +37,9 @@ jobs:
 
       - name: Offline example
         run: moon run cmd/moonvcr-demo
+
+      - name: Package manifest
+        run: moon package --list
+
+      - name: Package manifest
+        run: moon package --list

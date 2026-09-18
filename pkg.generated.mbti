@@ -60,6 +60,37 @@ pub fn Cassette::decode(String) -> Self raise CassetteError
 pub fn Cassette::empty() -> Self
 pub fn Cassette::encode(Self) -> String
 
+pub(all) enum ContractBodyKind {
+  ExpectEmptyBody
+  ExpectTextBody
+  ExpectBase64Body
+} derive(Eq, @debug.Debug)
+pub fn ContractBodyKind::label(Self) -> String
+
+pub(all) struct ContractReport {
+  violations : Array[ContractViolation]
+} derive(Eq, @debug.Debug)
+pub fn ContractReport::is_valid(Self) -> Bool
+pub fn ContractReport::summary(Self) -> String
+
+pub(all) struct ContractViolation {
+  kind : ContractViolationKind
+  path : String
+  expected : String
+  actual : String
+} derive(Eq, @debug.Debug)
+
+pub(all) enum ContractViolationKind {
+  StatusViolation
+  MissingHeaderViolation
+  BodyKindViolation
+  InvalidJsonViolation
+  InvalidJsonPathViolation
+  MissingJsonFieldViolation
+  JsonTypeViolation
+} derive(Eq, @debug.Debug)
+pub fn ContractViolationKind::label(Self) -> String
+
 pub(all) struct Header {
   name : String
   value : String
@@ -69,6 +100,21 @@ pub(all) struct Interaction {
   request : Request
   response : Response
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct JsonFieldContract {
+  path : String
+  expected_kind : JsonValueKind
+} derive(Eq, @debug.Debug)
+
+pub(all) enum JsonValueKind {
+  JsonNull
+  JsonBoolean
+  JsonNumber
+  JsonString
+  JsonArray
+  JsonObject
+} derive(Eq, @debug.Debug)
+pub fn JsonValueKind::label(Self) -> String
 
 pub(all) struct MatchCandidate {
   index : Int
@@ -136,6 +182,15 @@ pub(all) struct Response {
   headers : Array[Header]
   body : Body
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn Response::validate_contract(Self, ResponseContract) -> ContractReport
+
+pub(all) struct ResponseContract {
+  allowed_statuses : Array[Int]
+  required_headers : Array[String]
+  body_kind : ContractBodyKind?
+  json_fields : Array[JsonFieldContract]
+} derive(Eq, @debug.Debug)
+pub fn ResponseContract::permissive() -> Self
 
 pub(all) struct ScriptedTransport {
   responses : Array[Response]

@@ -4,7 +4,7 @@
 
 MoonVCR 将经过允许的 HTTP 请求与响应保存为可审阅的 cassette，并在开发和 CI 中离线回放。它面向需要稳定、可重复测试的 MoonBit SDK、服务端和内部 API。
 
-0.1.0 核心版本已经完成一条可运行的闭环：调用方显式提供 transport，MoonVCR 负责记录、脱敏、回放和离线诊断。当前版本已经包含：
+0.2.0 整改版在 0.1.0 的基础上完成一条可运行的闭环：调用方显式提供 transport，MoonVCR 负责记录、脱敏、回放、响应契约校验和离线诊断。当前版本已经包含：
 
 - 版本化的请求、响应、请求头、请求体、交互和 cassette 模型；
 - 确定性 JSON 编码与解码；
@@ -14,15 +14,16 @@ MoonVCR 将经过允许的 HTTP 请求与响应保存为可审阅的 cassette，
 - 显式 transport 的 record、replay 与 strict-offline 会话；
 - 默认敏感头/查询参数清理，以及可配置 JSON Pointer/dot 路径清理；
 - 不泄露原文的字段级 mismatch 诊断；
+- 状态码、必要响应头、body 类型和 JSON 字段类型的响应契约校验；
 - 有限响应脚本 transport 与无网络可运行示例；
 - 无网络即可运行的核心测试。
 
 ## 安装与最小用法
 
-Mooncakes 发布完成后，在你的 MoonBit 项目中添加 0.1.0 版本：
+Mooncakes 发布完成后，在你的 MoonBit 项目中添加 0.2.0 版本：
 
 ~~~text
-moon add chenqi-arch/moonbit-project@0.1.0
+moon add chenqi-arch/moonbit-project@0.2.0
 ~~~
 
 在代码中导入根包并创建会话：
@@ -43,20 +44,49 @@ let result = session.send(
 
 上面是 API 轮廓，cassette_text、request 和 offline_transport 由调用方提供；可直接运行的完整版本见 cmd/moonvcr-demo。回放只依赖内存中的 cassette 文本，不会因为回放未命中而偷偷联网。录制时则由调用方把现有 HTTP 客户端封装成 transport，并明确决定何时访问真实网络。
 
+## 响应契约校验
+
+回放得到的 `Response` 可以在不访问网络或文件系统的情况下执行契约校验。报告只返回规则路径、期望类型和实际类型，不复制响应头值、JSON 值或完整 body：
+
+~~~mbt
+let contract : @moonvcr.ResponseContract = {
+  allowed_statuses: [200],
+  required_headers: ["content-type"],
+  body_kind: Some(@moonvcr.ContractBodyKind::ExpectTextBody),
+  json_fields: [
+    {
+      path: "/items",
+      expected_kind: @moonvcr.JsonValueKind::JsonArray,
+    },
+  ],
+}
+let report = response.validate_contract(contract)
+if !report.is_valid() {
+  println(report.summary())
+}
+~~~
+
+契约校验适合放在 SDK 回归、接口升级和 CI 回放之后；它不是 OpenAPI 或完整 JSON Schema 实现，而是面向 cassette 的小型、确定性验收层。
+
 ## 本地验证
 
 安装 MoonBit 工具链后，在仓库根目录运行：
 
 ```text
 moon check
+moon build
 moon test
 moon fmt --check
+moon run cmd/moonvcr-demo
+moon package --list
 ```
 
-命令示例会在 transport 被调用时主动失败；成功输出 offline replay status=200 即证明
+当前测试套件共 59 个测试：原有核心回归 42 个、响应契约测试 10 个、可靠性回归 7 个。命令示例会在 transport 被调用时主动失败；成功输出 `offline replay status=200` 即证明
 strict-offline 回放没有触网。cassette 是纯文本 JSON，变更可以通过 Git 逐行审阅。
 record 模式只调用调用方显式传入的 transport，replay 和 strict-offline 模式不会调用
 transport；核心库不拦截系统流量，也不会暗中联网。
+
+可靠性测试矩阵和可复制的验收结果见 [RELIABILITY_ACCEPTANCE.md](RELIABILITY_ACCEPTANCE.md)。
 
 ## 最小内存回放
 
@@ -119,3 +149,5 @@ moon run cmd/moonvcr-demo
 ## 许可证
 
 Apache License 2.0，详见 [LICENSE](LICENSE)。
+
+`MoonVCR_submission.md` 只用于赛事报名，含联系方式，已被 Git 和发布包排除；它不属于 MoonVCR 运行时或公开包内容。

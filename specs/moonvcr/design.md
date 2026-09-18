@@ -156,3 +156,30 @@ MVP 使用“顺序优先、每条交互默认消费一次”的策略；同一�
 ## 9. 阶段门禁
 
 设计阶段完成后，必须确认以下内容再实现：模块边界、cassette schema、匹配默认值、replay 禁网语义、默认清理规则、许可证和首个可运行示例。用户确认后进入任务执行阶段；每次开始一组实现任务前先报告计划和验收标准。
+
+## 10. 初审整改设计：`contract`
+
+新增 `contract.mbt`，保持为无文件、无网络的纯函数模块：
+
+- `ResponseContract` 描述允许状态码、必要响应头、期望 body 类型和 JSON 字段规则；
+- `JsonFieldContract` 使用 JSON Pointer 或 dot shorthand 指定必要字段及类型；
+- `ContractReport` 按“状态码 → 响应头 → body → JSON 字段”的固定顺序返回 `ContractViolation`；
+- `Response::validate_contract` 是公开验收入口，调用方可在 replay 返回响应后直接执行离线契约校验；
+- 报告只包含规则路径、期望类型和实际类型，不包含响应头值、JSON 值或 body 原文；
+- JSON 路径解析复用现有脱敏模块的路径规则，避免两套路径语义漂移。
+
+可靠性测试新增独立 `reliability_test.mbt`，覆盖 transport 零调用、重复确定性、录制到离线回放闭环、敏感信息不落盘和失败不污染 cassette。所有测试继续在 wasm 目标下运行，不依赖外部网络或文件系统。
+
+## 11. 阶段2发布与申报设计
+
+### 11.1 版本边界
+
+响应契约是公开 API，不能继续写入已经发布的 `0.1.0` 说明。因此本地整改候选版本统一为 `0.2.0`；在正式发布前，文档使用“本地候选版本”措辞，发布后才记录 Mooncakes 可安装事实。
+
+### 11.2 发布包边界
+
+运行时代码、测试、README、LICENSE、CI、demo、规格文档和 `RELIABILITY_ACCEPTANCE.md` 属于可审阅交付物。`MoonVCR_submission.md` 含个人联系方式，只作为本地报名材料，通过 `.gitignore` 和发布前 `moon package --list` 双重检查排除。
+
+### 11.3 证据与申报同步
+
+README 负责新用户复现路径，`RELIABILITY_ACCEPTANCE.md` 负责测试矩阵和预期输出，`RELEASE_CHECKLIST.md` 负责版本、发布顺序和安全边界，申报书只引用这些已实现证据。任何未在源码和测试中验证的网络拦截、浏览器录制或真实 HTTP 客户端能力不写入申报材料。

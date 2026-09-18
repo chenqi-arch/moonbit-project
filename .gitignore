@@ -11,3 +11,6 @@ work/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local competition material; never include personal contact data in a package
+MoonVCR_submission.md

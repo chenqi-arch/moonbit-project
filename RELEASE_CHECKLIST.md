@@ -1,18 +1,16 @@
-# MoonVCR 发布与比赛提交检查清单
+# MoonVCR 0.2.0 发布与比赛复核清单
 
-这份清单记录 0.1.0 版本发布和比赛报名的最终核验结果。它只描述仓库中已经存在并能运行的能力，不把规划中的功能写成已完成。
+这份清单只记录当前源码能够复验的内容。0.1.0 是此前已经发布的基线版本；0.2.0 包含响应契约校验和可靠性测试整改，当前先在本地验证，正式发布前不得把它写成已发布事实。
 
 ## 当前包信息
 
 | 项目 | 值 |
 | --- | --- |
-| 模块名 | chenqi-arch/moonbit-project |
-| 版本 | 0.1.0 |
+| 模块名 | `chenqi-arch/moonbit-project` |
+| 版本 | `0.2.0` |
 | 许可证 | Apache-2.0 |
 | 仓库 | https://github.com/chenqi-arch/moonbit-project |
-| 包入口 | 根包，导入别名可使用 @moonvcr |
-
-moon.mod 已声明上述元数据。版本已发布，消费者可以使用 moon add chenqi-arch/moonbit-project@0.1.0 添加依赖。
+| 包入口 | 根包，导入别名可使用 `@moonvcr` |
 
 ## 本地验收命令
 
@@ -31,37 +29,31 @@ git status --short --branch
 
 验收重点：
 
-- moon test 应保持 42 个测试全部通过；
-- demo 应输出 offline replay status=200，证明 strict-offline 回放没有调用 transport；
-- moon package --list 应能生成并列出发布归档，归档中包含许可证、README、根包源码、测试、demo 和 specs 文档；
-- git diff --check 不应发现空白错误，提交前代码工作树应干净；报名用申报书文件可以在仓库外单独保存。
+- `moon test` 应保持 59 个测试全部通过；
+- demo 应输出 `offline replay status=200` 和 `recorded interactions=1`；
+- `moon package --list` 应包含源码、测试、README、LICENSE、CI、demo、规格和可靠性验收说明，不应包含 `MoonVCR_submission.md`；
+- `git diff --check` 不应发现空白错误；
+- 发布前工作树应只包含明确准备提交的内容。
 
-## Mooncakes 预演与正式发布记录
+完整测试矩阵见 [RELIABILITY_ACCEPTANCE.md](RELIABILITY_ACCEPTANCE.md)。
 
-发布前预演命令（已执行）：
+## 发布顺序
 
-~~~text
-moon publish --dry-run --frozen
-~~~
+1. 在干净的 Windows PowerShell 环境完成上述本地验收。
+2. 检查 `moon.mod`、README、申报书和报名表使用同一个版本号 `0.2.0`。
+3. 创建一条有实际内容的普通 Git 提交，不修改既有历史。
+4. 推送 `main` 后核对 GitHub 文件、提交历史和 CI 结果。
+5. 登录 Mooncakes，先执行 `moon publish --dry-run --frozen`，确认包清单无私人材料。
+6. 执行 `moon publish --frozen`，再用隔离项目执行 `moon fetch chenqi-arch/moonbit-project@0.2.0` 验证消费者安装。
 
-预演完成后，维护者完成 Mooncakes 登录并执行正式发布：
+## 比赛材料边界
 
-~~~text
-moon login
-moon publish --frozen
-~~~
-
-正式发布结果：服务器返回 200 OK。随后已从隔离临时项目执行 moon fetch chenqi-arch/moonbit-project@0.1.0，消费者下载验证成功；moon search 也能返回公开的 0.1.0 版本。
-
-## 比赛提交前复核
-
-- GitHub 仓库保持公开，提交历史使用普通 Git 提交，不改写、不伪造；
+- GitHub 仓库保持公开，历史使用普通 Git 提交，不改写、不伪造；
 - 当前历史已经超过赛事要求的 10 个有效提交；
-- README、LICENSE、CI、离线 demo、核心测试和 MoonBit 包元数据均在仓库中；
-- 申报书只写当前仓库已经能运行的功能：显式 transport 录制、敏感信息清理、确定性回放、strict-offline 和 mismatch 诊断；
-- 申报书应明确三类场景：SDK/内部 API 回归测试、CI 无网回归、接口契约变更定位；
-- 不应宣称第一版已经具备 TLS MITM、系统代理、浏览器录制或自动拦截任意进程流量。
+- 申报书只描述已经实现并能复验的显式 transport 录制、脱敏、确定性回放、strict-offline、响应契约校验和 mismatch 诊断；
+- 申报书中的可靠性验收命令和结果必须与 `RELIABILITY_ACCEPTANCE.md` 一致；
+- `MoonVCR_submission.md` 只保存在本地用于报名，含联系方式，不进入 GitHub 或 Mooncakes 包。
 
-## 安全边界
+## 明确不宣称
 
-MoonVCR 不自行截获系统流量。Record 模式是否访问真实网络完全由调用方传入的 transport 决定；Replay 和 StrictOffline 模式不调用 transport。默认脱敏会处理常见凭据，业务专用字段必须通过 RedactionConfig 显式配置。脱敏规则失败时，交互不会写入 cassette。
+第一版不具备 TLS MITM、系统代理、浏览器录制或自动拦截任意进程流量。Record 是否访问真实网络完全由调用方传入的 transport 决定；Replay 和 StrictOffline 不调用 transport。
