@@ -50,6 +50,42 @@ test "replay consumes matching entries in order" {
     Err(ReplayMiss(candidates)) => assert_eq(candidates.length(), 0)
     Err(_) => assert_true(false)
   }
+  assert_eq(session.remaining_interactions(), 0)
+  match session.assert_complete() {
+    Ok(_) => ()
+    Err(_) => assert_true(false)
+  }
+}
+
+///|
+test "replay reports incomplete cassette when a request is missing" {
+  let request = session_request("https://example.test/items")
+  let cassette : Cassette = {
+    format_version: CURRENT_FORMAT_VERSION,
+    interactions: [{ request, response: session_response(200), }],
+  }
+  let session = Session::with_defaults(cassette, StrictOffline)
+  assert_eq(session.remaining_interactions(), 1)
+  match session.assert_complete() {
+    Err(IncompleteReplay(remaining)) => assert_eq(remaining, 1)
+    _ => assert_true(false)
+  }
+}
+
+///|
+test "session owns a cassette snapshot and returns a copy" {
+  let request = session_request("https://example.test/items")
+  let cassette : Cassette = {
+    format_version: CURRENT_FORMAT_VERSION,
+    interactions: [{ request, response: session_response(200), }],
+  }
+  let session = Session::with_defaults(cassette, Replay)
+  let returned = session.cassette()
+  returned.interactions.push({
+    request: session_request("https://changed.test"),
+    response: session_response(500),
+  })
+  assert_eq(session.cassette().interactions.length(), 1)
 }
 
 ///|
@@ -208,4 +244,13 @@ test "replay redaction failure is typed and does not call transport" {
     Err(RedactionFailed(MissingPath(path))) => assert_eq(path, "/required")
     _ => assert_true(false)
   }
+}
+
+///|
+test "public session error summary does not expose transport details" {
+  let error = SessionError::TransportFailed(
+    TransportError::Failed("private-token"),
+  )
+  assert_eq(SessionError::summary(error), "transport failed")
+  assert_true(!SessionError::summary(error).contains("private-token"))
 }

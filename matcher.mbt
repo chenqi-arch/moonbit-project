@@ -1,5 +1,9 @@
 ///|
 /// A cassette entry considered during request matching.
+///
+/// `key` is a value-safe summary. It is intentionally not the internal
+/// normalized matching key, so a replay error cannot expose recorded headers,
+/// query values, or request bodies.
 pub(all) struct MatchCandidate {
   index : Int
   key : String
@@ -19,7 +23,7 @@ pub fn request_match_key(request : Request, config : MatchConfig) -> String {
 }
 
 ///|
-/// Return every unconsumed entry, retaining its normalized key for diagnostics.
+/// Return every unconsumed entry with a value-safe summary for diagnostics.
 pub fn match_candidates(
   request : Request,
   cassette : Cassette,
@@ -27,13 +31,14 @@ pub fn match_candidates(
   consumed : Array[Bool],
 ) -> Array[MatchCandidate] {
   let candidates : Array[MatchCandidate] = []
-  let _request_key = normalize_request(request, config)
+  let _ = request
+  let _ = config
   for index in 0..<cassette.interactions.length() {
     let used = if index < consumed.length() { consumed[index] } else { false }
     if !used {
       candidates.push({
         index,
-        key: normalize_request(cassette.interactions[index].request, config),
+        key: request_safe_summary(cassette.interactions[index].request),
       })
     }
   }
@@ -49,11 +54,17 @@ pub fn match_request(
   consumed : Array[Bool],
 ) -> MatchResult {
   let request_key = normalize_request(request, config)
-  let candidates = match_candidates(request, cassette, config, consumed)
-  for candidate in candidates {
-    if candidate.key == request_key {
-      return Matched(candidate.index)
+  for index in 0..<cassette.interactions.length() {
+    let used = if index < consumed.length() { consumed[index] } else { false }
+    if !used {
+      let candidate_key = normalize_request(
+        cassette.interactions[index].request,
+        config,
+      )
+      if candidate_key == request_key {
+        return Matched(index)
+      }
     }
   }
-  NoMatch(candidates)
+  NoMatch(match_candidates(request, cassette, config, consumed))
 }

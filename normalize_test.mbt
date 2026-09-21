@@ -29,8 +29,8 @@ test "normalizes selected headers" {
     body_mode: Exact,
   }
   let key = normalize_request(request, config)
-  assert_true(key.contains("method=GET"))
-  assert_true(key.contains("headers=accept=application/json"))
+  assert_true(key.contains("method=3:GET"))
+  assert_true(key.contains("headers=6:accept=16:application/json"))
   assert_true(!key.contains("x-trace"))
 }
 
@@ -69,4 +69,25 @@ test "keeps base64 body kind in exact matching keys" {
   }
   let key = normalize_request(request, MatchConfig::default())
   assert_true(key.contains("body=base64:4:AAEC"))
+}
+
+///|
+/// Delimiters inside header values must not collide with multiple headers.
+test "structured request keys distinguish header boundaries" {
+  let one : Request = {
+    method: "GET",
+    url: "https://example.test/items",
+    headers: [{ name: "a", value: "b&c=d", }],
+    body: Empty,
+  }
+  let two : Request = {
+    method: "GET",
+    url: "https://example.test/items",
+    headers: [{ name: "a", value: "b", }, { name: "c", value: "d", }],
+    body: Empty,
+  }
+  assert_true(
+    normalize_request(one, MatchConfig::default()) !=
+    normalize_request(two, MatchConfig::default()),
+  )
 }

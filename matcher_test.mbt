@@ -52,7 +52,7 @@ test "matcher finds the first unconsumed equivalent request" {
 }
 
 ///|
-/// A miss carries stable candidate information for future mismatch reports.
+/// A miss carries a value-safe candidate summary for future diagnostics.
 test "matcher reports unconsumed candidates on miss" {
   let cassette : Cassette = {
     format_version: CURRENT_FORMAT_VERSION,
@@ -78,7 +78,9 @@ test "matcher reports unconsumed candidates on miss" {
     NoMatch(candidates) => {
       assert_eq(candidates.length(), 1)
       assert_eq(candidates[0].index, 0)
-      assert_true(candidates[0].key.contains("page=1"))
+      assert_true(candidates[0].key.contains("method=GET"))
+      assert_true(candidates[0].key.contains("url-len="))
+      assert_true(!candidates[0].key.contains("page=1"))
     }
   }
 }

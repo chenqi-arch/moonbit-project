@@ -45,6 +45,30 @@ test "diagnoses method, URL, and query differences" {
 }
 
 ///|
+test "diagnostic URL summaries do not expose user information" {
+  let expected = diagnostic_request(
+    "GET",
+    "https://user:expected-password@example.test/items",
+    [],
+    Empty,
+  )
+  let actual = diagnostic_request(
+    "GET",
+    "https://user:actual-password@example.test/other",
+    [],
+    Empty,
+  )
+  let summary = diagnose_mismatch(
+    actual,
+    diagnostic_cassette(expected),
+    MatchConfig::default(),
+    [false],
+  ).summary()
+  assert_true(!summary.contains("expected-password"))
+  assert_true(!summary.contains("actual-password"))
+}
+
+///|
 test "diagnoses headers without exposing their values" {
   let expected = diagnostic_request(
     "GET",

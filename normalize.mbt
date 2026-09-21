@@ -97,9 +97,9 @@ fn normalize_headers(headers : Array[Header], config : MatchConfig) -> String {
   for header in headers {
     if should_include_header(header.name, config) {
       parts.push(
-        normalized_header_name(header.name) +
+        length_prefix(normalized_header_name(header.name)) +
         "=" +
-        normalized_header_value(header.value),
+        length_prefix(normalized_header_value(header.value)),
       )
     }
   }
@@ -114,10 +114,37 @@ fn normalize_body(body : Body, mode : BodyMatchMode) -> String {
     Exact =>
       match body {
         Empty => "empty"
-        Text(value) => "text:" + value.length().to_string() + ":" + value
-        Base64(value) => "base64:" + value.length().to_string() + ":" + value
+        Text(value) => "text:" + length_prefix(value)
+        Base64(value) => "base64:" + length_prefix(value)
       }
   }
+}
+
+///|
+/// Prefix a value with its length so delimiters inside the value cannot make
+/// two different request structures share the same matching key.
+fn length_prefix(value : String) -> String {
+  value.length().to_string() + ":" + value
+}
+
+///|
+/// Describe a request without copying URL, header, query, or body values.
+/// This is suitable for public candidate errors.
+pub fn request_safe_summary(request : Request) -> String {
+  let method = request.method.trim().to_owned().to_upper()
+  let body = match request.body {
+    Empty => "empty"
+    Text(value) => "text(len=" + value.length().to_string() + ")"
+    Base64(value) => "base64(len=" + value.length().to_string() + ")"
+  }
+  "method=" +
+  method +
+  ",url-len=" +
+  request.url.length().to_string() +
+  ",headers=" +
+  request.headers.length().to_string() +
+  ",body=" +
+  body
 }
 
 ///|
@@ -127,9 +154,9 @@ pub fn normalize_request(request : Request, config : MatchConfig) -> String {
   let headers = normalize_headers(request.headers, config)
   let body = normalize_body(request.body, config.body_mode)
   "method=" +
-  method +
+  length_prefix(method) +
   "\nurl=" +
-  normalize_url(request.url) +
+  length_prefix(normalize_url(request.url)) +
   "\nheaders=" +
   headers +
   "\nbody=" +

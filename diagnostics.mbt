@@ -217,7 +217,11 @@ fn diagnostic_view(
   )
   {
     method: method.trim().to_owned().to_upper(),
-    base_url: match_base_url + "",
+    base_url: "<url-base len=" +
+    match_base_url.length().to_string() +
+    ",fp=" +
+    safe_fingerprint(match_base_url + "") +
+    ">",
     query: diagnostic_query(url, redaction),
     headers: header_summary,
     body: body_summary,

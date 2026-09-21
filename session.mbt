@@ -18,7 +18,21 @@ pub(all) enum SessionError {
   ReplayMiss(Array[MatchCandidate])
   TransportFailed(TransportError)
   RedactionFailed(RedactionError)
+  IncompleteReplay(Int)
 } derive(Eq, @debug.Debug)
+
+///|
+/// Render a safe summary without copying transport messages or secrets.
+pub fn SessionError::summary(self : SessionError) -> String {
+  match self {
+    ReplayMiss(candidates) =>
+      "replay miss: " + candidates.length().to_string() + " candidates"
+    TransportFailed(_) => "transport failed"
+    RedactionFailed(_) => "redaction failed"
+    IncompleteReplay(remaining) =>
+      "replay incomplete: " + remaining.to_string() + " interactions remain"
+  }
+}
 
 ///|
 /// Stateful record/replay session. Replay never invokes its transport.
@@ -54,7 +68,13 @@ pub fn Session::new_with_redaction(
   redaction : RedactionConfig,
 ) -> Session {
   let count = cassette.interactions.length()
-  { cassette, config, redaction, mode, consumed: Array::make(count, false), }
+  {
+    cassette: copy_cassette(cassette),
+    config: copy_match_config(config),
+    redaction: copy_redaction_config(redaction),
+    mode,
+    consumed: Array::make(count, false),
+  }
 }
 
 ///|
@@ -124,5 +144,105 @@ pub fn Session::diagnose(self : Session, request : Request) -> MismatchReport {
 ///|
 /// Return the cassette, including interactions recorded so far.
 pub fn Session::cassette(self : Session) -> Cassette {
-  self.cassette
+  copy_cassette(self.cassette)
+}
+
+///|
+/// Number of replay entries that have not been consumed yet.
+pub fn Session::remaining_interactions(self : Session) -> Int {
+  let mut remaining = 0
+  for index in 0..<self.cassette.interactions.length() {
+    let used = if index < self.consumed.length() {
+      self.consumed[index]
+    } else {
+      false
+    }
+    if !used {
+      remaining += 1
+    }
+  }
+  remaining
+}
+
+///|
+/// Fail a replay assertion when the caller did not consume the whole cassette.
+pub fn Session::assert_complete(self : Session) -> Result[Unit, SessionError] {
+  let remaining = self.remaining_interactions()
+  if remaining == 0 {
+    Ok(())
+  } else {
+    Err(IncompleteReplay(remaining))
+  }
+}
+
+///|
+fn copy_header(header : Header) -> Header {
+  { name: header.name + "", value: header.value + "", }
+}
+
+///|
+fn copy_headers(headers : Array[Header]) -> Array[Header] {
+  let copied : Array[Header] = []
+  for header in headers {
+    copied.push(copy_header(header))
+  }
+  copied
+}
+
+///|
+fn copy_body(body : Body) -> Body {
+  match body {
+    Empty => Empty
+    Text(value) => Text(value + "")
+    Base64(value) => Base64(value + "")
+  }
+}
+
+///|
+fn copy_request(request : Request) -> Request {
+  {
+    method: request.method + "",
+    url: request.url + "",
+    headers: copy_headers(request.headers),
+    body: copy_body(request.body),
+  }
+}
+
+///|
+fn copy_response(response : Response) -> Response {
+  {
+    status: response.status,
+    headers: copy_headers(response.headers),
+    body: copy_body(response.body),
+  }
+}
+
+///|
+fn copy_cassette(cassette : Cassette) -> Cassette {
+  let interactions : Array[Interaction] = []
+  for interaction in cassette.interactions {
+    interactions.push({
+      request: copy_request(interaction.request),
+      response: copy_response(interaction.response),
+    })
+  }
+  { format_version: cassette.format_version, interactions, }
+}
+
+///|
+fn copy_match_config(config : MatchConfig) -> MatchConfig {
+  {
+    include_headers: config.include_headers.map(value => value + ""),
+    ignore_headers: config.ignore_headers.map(value => value + ""),
+    body_mode: config.body_mode,
+  }
+}
+
+///|
+fn copy_redaction_config(config : RedactionConfig) -> RedactionConfig {
+  {
+    headers: config.headers.map(value => value + ""),
+    query_parameters: config.query_parameters.map(value => value + ""),
+    json_paths: config.json_paths.map(value => value + ""),
+  }
 }

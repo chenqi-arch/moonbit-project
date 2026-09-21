@@ -136,6 +136,25 @@ test "redacts caller-defined header and query names case-insensitively" {
 }
 
 ///|
+test "redacts encoded sensitive query names and URL user information" {
+  let config = RedactionConfig::default()
+  let request : Request = {
+    method: "GET",
+    url: "https://user:password@example.test/items?access%5Ftoken=private",
+    headers: [],
+    body: Empty,
+  }
+  match redact_request(request, config) {
+    Err(_) => assert_true(false)
+    Ok(safe) => {
+      assert_true(!safe.url.contains("password"))
+      assert_true(safe.url.contains("[REDACTED]@example.test"))
+      assert_true(safe.url.contains("access%5Ftoken=[REDACTED]"))
+    }
+  }
+}
+
+///|
 test "redacts response headers and JSON body with custom rules" {
   let config : RedactionConfig = {
     headers: ["X-Session"],

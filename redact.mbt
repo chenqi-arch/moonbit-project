@@ -46,18 +46,89 @@ fn sensitive_header(name : String, config : RedactionConfig) -> Bool {
 
 ///|
 fn sensitive_query_parameter(name : String, config : RedactionConfig) -> Bool {
-  let normalized = name.trim().to_owned().to_lower()
+  let normalized = percent_decode_query_name(name.trim().to_owned().to_lower())
   for candidate in RedactionConfig::default().query_parameters {
-    if normalized == candidate.trim().to_owned().to_lower() {
+    if normalized ==
+      percent_decode_query_name(candidate.trim().to_owned().to_lower()) {
       return true
     }
   }
   for candidate in config.query_parameters {
-    if normalized == candidate.trim().to_owned().to_lower() {
+    if normalized ==
+      percent_decode_query_name(candidate.trim().to_owned().to_lower()) {
       return true
     }
   }
   false
+}
+
+///|
+fn hex_digit(value : Int) -> Int? {
+  if value >= '0'.to_int() && value <= '9'.to_int() {
+    return Some(value - '0'.to_int())
+  }
+  if value >= 'a'.to_int() && value <= 'f'.to_int() {
+    return Some(value - 'a'.to_int() + 10)
+  }
+  if value >= 'A'.to_int() && value <= 'F'.to_int() {
+    return Some(value - 'A'.to_int() + 10)
+  }
+  None
+}
+
+///|
+/// Decode percent escapes in a query parameter name for sensitive-name
+/// matching. Invalid escapes are retained and therefore cannot hide a name.
+fn percent_decode_query_name(name : String) -> String {
+  let output = StringBuilder(size_hint=name.length())
+  let mut index = 0
+  while index < name.length() {
+    let code = name.unsafe_get(index)
+    if code.to_int() == '%'.to_int() && index + 2 < name.length() {
+      let first = hex_digit(name.unsafe_get(index + 1).to_int())
+      let second = hex_digit(name.unsafe_get(index + 2).to_int())
+      match (first, second) {
+        (Some(left), Some(right)) => {
+          output.write_char((left * 16 + right).unsafe_to_char())
+          index += 3
+          continue
+        }
+        _ => ()
+      }
+    }
+    output.write_char(code.unsafe_to_char())
+    index += 1
+  }
+  output.to_string()
+}
+
+///|
+/// Remove URL user information before query redaction. The host and path are
+/// retained, while both usernames and passwords are replaced together.
+fn redact_url_userinfo(url : String) -> String {
+  match url.split_once("://") {
+    None => url
+    Some((scheme, rest)) => {
+      let (authority, suffix) = match rest.split_once("/") {
+        Some((host, path)) => (host.to_owned(), "/" + path.to_owned())
+        None =>
+          match rest.split_once("?") {
+            Some((host, query)) => (host.to_owned(), "?" + query.to_owned())
+            None => (rest.to_owned(), "")
+          }
+      }
+      match authority.split_once("@") {
+        Some((_, host)) =>
+          scheme.to_owned() +
+          "://" +
+          REDACTION_MARKER +
+          "@" +
+          host.to_owned() +
+          suffix
+        None => url
+      }
+    }
+  }
 }
 
 ///|
@@ -81,11 +152,12 @@ fn redact_url(url : String, config : RedactionConfig) -> String {
     Some((before, after)) => (before.to_owned(), Some(after.to_owned()))
     None => (url, None)
   }
-  match without_fragment.split_once("?") {
+  let without_userinfo = redact_url_userinfo(without_fragment)
+  match without_userinfo.split_once("?") {
     None =>
       match fragment {
-        Some(value) => without_fragment + "#" + value
-        None => without_fragment
+        Some(value) => without_userinfo + "#" + value
+        None => without_userinfo
       }
     Some((base, raw_query)) => {
       let parts : Array[String] = []
