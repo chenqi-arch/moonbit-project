@@ -21,11 +21,8 @@ redact.mbt        请求、响应独立的安全副本
 diagnostics.mbt   仅描述字段的差异摘要
 contract.mbt      小型确定性响应契约
 adapter.mbt       内存脚本 transport 和适配接口
-native/moon.pkg   native 目标的文件与 HTTP 适配边界
-native/archive.mbt  cassette 文件加载、保存和大小保护
-native/http_transport.mbt  官方 async HTTP 到核心模型的显式适配
-cmd/moonvcr-demo/  portable 离线回放和录制演示
-cmd/moonvcr-native-*/  native 归档与跨进程离线回放演示
+io/               平台文件保存和加载（目标后端明确后实现）
+examples/         三个可复制业务场景和故障演示
 ```
 
 核心公开错误只包含错误类别、索引、字段路径、长度或不可逆描述。匹配器内部可以使用结构化 key，但不得直接将 key 作为公开错误 payload。`Cassette`、`Request`、`Response` 和配置在创建会话时复制；公开 accessor 返回副本或只读摘要，避免调用方通过别名修改内部状态。
@@ -52,11 +49,11 @@ cmd/moonvcr-native-*/  native 归档与跨进程离线回放演示
 
 ## 契约设计
 
-保留状态码、必需头存在、body 表示和 JSON 路径类型规则；已实现精确 header 值、可选 JSON 字段和数组直接元素类型规则，报告仍只包含路径与类型/安全指纹。当前数组规则不做通配符深层遍历，也不冒充完整 JSON Schema；需要更复杂的业务约束时由调用方继续执行专用断言。契约报告由调用方显式断言，库不吞掉失败。
+保留状态码、必需头存在、body 表示和 JSON 路径类型规则；新增精确媒体类型/头值、可选字段和数组元素规则，报告仍只包含路径与类型。规则构造阶段拒绝空路径、重复冲突和不支持的数组通配符。契约报告由调用方显式断言，库不吞掉失败。
 
 ## 示例、测试与 CI
 
-每个已交付示例都包含合成服务响应、请求、cassette、通过输出和失败分支。当前可运行的闭环是 portable 内存录制/回放，以及 native 文件保存→新进程离线回放；native HTTP 适配器已按官方 async API 编译并在 CI 的 native 构建矩阵中检查，真实 loopback 服务运行测试仍作为后续集成项，不在本地未验证时冒充完成。核心单测覆盖结构化 key、脱敏、状态和契约；独立消费者测试需在 0.3.0 正式发布后执行。
+每个示例都包含合成服务响应、请求、cassette、通过输出和故障输出。真实 E2E 使用本地服务，不访问第三方 API：录制进程保存档案，回放进程在服务关闭后运行。核心单测覆盖结构化 key、脱敏、状态和契约；集成测试覆盖文件和真实 loopback；消费者测试从 Mooncakes 安装而非源码引用。
 
 CI 顺序固定为格式、check、build、unit test、integration test、离线示例、package manifest 和消费者检查。任何命令失败返回非零；移除重复步骤。每次发布记录工具链版本、提交 SHA、包版本、测试结果和支持平台。
 

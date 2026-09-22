@@ -99,14 +99,11 @@ test "reliability: record encode decode replay and contract validation form one 
       let contract : ResponseContract = {
         allowed_statuses: [200],
         required_headers: ["content-type"],
-        required_header_values: [],
         body_kind: Some(ExpectTextBody),
         json_fields: [
           { path: "/items", expected_kind: JsonArray, },
           { path: "/request_id", expected_kind: JsonString, },
         ],
-        optional_json_fields: [],
-        json_array_elements: [],
       }
       let report = response.validate_contract(contract)
       assert_true(report.is_valid())
@@ -186,11 +183,8 @@ test "reliability: contract reports remain deterministic and never expose values
   let contract : ResponseContract = {
     allowed_statuses: [200],
     required_headers: ["content-type"],
-    required_header_values: [],
     body_kind: Some(ExpectTextBody),
     json_fields: [{ path: "/token", expected_kind: JsonNumber, }],
-    optional_json_fields: [],
-    json_array_elements: [],
   }
   let first = response.validate_contract(contract).summary()
   let second = response.validate_contract(contract).summary()

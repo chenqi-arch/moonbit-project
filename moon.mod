@@ -1,6 +1,6 @@
 name = "chenqi-arch/moonbit-project"
 
-version = "0.3.0"
+version = "0.2.0"
 
 readme = "README.md"
 
@@ -13,7 +13,3 @@ keywords = [ "http", "testing", "record-replay", "offline" ]
 preferred_target = "wasm"
 
 description = "MoonBit HTTP recording, replay, response contract validation, and offline testing library"
-
-import {
-  "moonbitlang/async@0.22.1",
-}

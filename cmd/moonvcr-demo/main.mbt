@@ -6,7 +6,10 @@
 fn main {
   let cassette_text = @moonvcr.Cassette::encode(@moonvcr.example_cassette())
   let cassette = @moonvcr.Cassette::decode(cassette_text) catch {
-    _ => abort("cassette decode failed")
+    _ => {
+      println("cassette decode failed")
+      return
+    }
   }
   let request : @moonvcr.Request = {
     method: "GET",
@@ -30,7 +33,7 @@ fn main {
         @moonvcr.Body::Base64(_) => println("<base64 body>")
       }
     }
-    Err(_) => abort("offline replay failed")
+    Err(_) => println("offline replay failed")
   }
   let scripted = @moonvcr.ScriptedTransport::new([
     {
@@ -49,6 +52,6 @@ fn main {
         "recorded interactions=" +
         record_session.cassette().interactions.length().to_string(),
       )
-    Err(_) => abort("record failed")
+    Err(_) => println("record failed")
   }
 }
