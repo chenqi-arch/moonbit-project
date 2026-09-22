@@ -1,34 +1,35 @@
 # MoonVCR
 
-**MoonVCR：MoonBit HTTP 交互录制回放与离线契约测试库**
+MoonVCR 是一个 MoonBit 原生的 HTTP 交互录制、回放与离线契约测试库。它把调用方明确交给它的请求和响应保存为可审阅的 JSON cassette，在开发机和 CI 中按稳定规则回放，并在接口变化时给出不泄露业务数据的差异报告。
 
-MoonVCR 将经过允许的 HTTP 请求与响应保存为可审阅的 cassette，并在开发和 CI 中离线回放。它面向需要稳定、可重复测试的 MoonBit SDK、服务端和内部 API。
+它解决的是一个很具体的问题：SDK、内部服务和第三方 API 的回归测试不应该依赖实时网络，也不应该把真实凭据和不稳定响应带进 CI。MoonVCR 不会偷偷拦截系统流量，调用方必须显式提供 transport，因此网络边界和测试数据来源是可审计的。
 
-0.2.0 整改版在 0.1.0 的基础上完成一条可运行的闭环：调用方显式提供 transport，MoonVCR 负责记录、脱敏、回放、响应契约校验和离线诊断。当前版本已经包含：
+## 当前版本交付范围
 
-- 版本化的请求、响应、请求头、请求体、交互和 cassette 模型；
-- 确定性 JSON 编码与解码；
-- 未知 schema 版本和损坏 JSON 的类型化错误；
-- URL、查询参数和请求头规范化，以及可配置的 body 匹配策略；
-- 确定性 matcher、顺序消费和候选摘要；
-- 显式 transport 的 record、replay 与 strict-offline 会话；
-- 默认敏感头/查询参数清理，以及可配置 JSON Pointer/dot 路径清理；
-- 不泄露原文的字段级 mismatch 诊断；
-- 状态码、必要响应头、body 类型和 JSON 字段类型的响应契约校验；
-- 有限响应脚本 transport 与无网络可运行示例；
-- 无网络即可运行的核心测试。
+- MoonBit 核心模型：`Request`、`Response`、`Interaction`、版本化 `Cassette` 以及确定性 JSON 编解码。
+- 确定性匹配：规范化方法、URL/query、选定请求头和文本/Base64 body；支持按 cassette 顺序消费重复请求。
+- 三种会话：`Record`、`Replay`、`StrictOffline`。严格离线未命中时直接返回错误，不会回退到网络。
+- 数据安全：默认清理常见凭据、敏感 query 和 JSON 路径；URL 用户信息也会被清理；脱敏失败时不写入 cassette。
+- 安全诊断：候选摘要只输出字段类型、长度和指纹，不复制未知 header、body 或凭据原文。
+- 响应契约：状态码、必需响应头、响应头精确值、body 表示类型、必需/可选 JSON 字段和数组直接元素类型校验；报告提供稳定顺序和安全摘要。
+- 原生适配层：基于 MoonBit 官方 `moonbitlang/async` 的 HTTP 请求适配器，以及带大小上限、同步临时文件和显式覆盖语义的 cassette 文件归档器。
+- 可验证样例：可离线运行的核心 demo、原生文件归档 demo、核心回归测试和 GitHub Actions 双目标 CI。
 
-## 安装与最小用法
+明确不在本版本范围内：TLS MITM、系统代理、浏览器自动注入、任意进程流量拦截和完整 OpenAPI/JSON Schema 生成。这些能力会扩大权限边界，不属于当前库的可审计核心。
 
-Mooncakes `0.2.0` 已正式发布，可在你的 MoonBit 项目中直接添加：
+## 安装
 
-~~~text
-moon add chenqi-arch/moonbit-project@0.2.0
-~~~
+发布 `0.3.0` 后，在 MoonBit 项目中添加：
 
-在代码中导入根包并创建会话：
+```text
+moon add chenqi-arch/moonbit-project@0.3.0
+```
 
-~~~mbt
+核心包默认不依赖网络或文件系统，适合 wasm 和纯离线测试。需要真实 HTTP 或 cassette 文件时，再显式导入 native 子包；它依赖 MoonBit 官方异步库并只支持 native 目标。
+
+## 最小离线回放
+
+```mbt
 import { "chenqi-arch/moonbit-project" @moonvcr, }
 
 let cassette = @moonvcr.Cassette::decode(cassette_text)
@@ -36,22 +37,57 @@ let session = @moonvcr.Session::with_defaults(
   cassette,
   @moonvcr.SessionMode::StrictOffline,
 )
-let result = session.send(
-  request,
-  offline_transport,
+let offline_transport = (_ : @moonvcr.Request) => {
+  Err(@moonvcr.TransportError::Failed("network disabled"))
+}
+let response = session.send(request, offline_transport)
+```
+
+`StrictOffline` 只读取内存中的 cassette。回放未命中会得到 `ReplayMiss`，不会调用传入的 transport，更不会暗中访问网络。需要确认 cassette 已全部消费时，可调用 `session.assert_complete()`。
+
+## 显式录制
+
+核心库不替调用方选择 HTTP 客户端：
+
+```mbt
+let session = @moonvcr.Session::with_defaults(
+  @moonvcr.Cassette::empty(),
+  @moonvcr.SessionMode::Record,
 )
-~~~
+let response = session.send(request, request => http_client_send(request))
+let cassette_text = @moonvcr.Cassette::encode(session.cassette())
+```
 
-上面是 API 轮廓，cassette_text、request 和 offline_transport 由调用方提供；可直接运行的完整版本见 cmd/moonvcr-demo。回放只依赖内存中的 cassette 文本，不会因为回放未命中而偷偷联网。录制时则由调用方把现有 HTTP 客户端封装成 transport，并明确决定何时访问真实网络。
+异步 HTTP 客户端可以把响应交给 `session.record_response(request, response)`；这样异步 I/O 和可移植核心仍然分层，测试可以只替换 transport。
 
-## 响应契约校验
+## 原生 HTTP 与文件归档
 
-回放得到的 `Response` 可以在不访问网络或文件系统的情况下执行契约校验。报告只返回规则路径、期望类型和实际类型，不复制响应头值、JSON 值或完整 body：
+```mbt
+import {
+  "chenqi-arch/moonbit-project" @moonvcr,
+  "chenqi-arch/moonbit-project/native" @moonvcr_native,
+}
 
-~~~mbt
+let response = @moonvcr_native.record_http(session, request)
+@moonvcr_native.save_cassette_new("fixtures/items.json", session.cassette())
+let restored = @moonvcr_native.load_cassette_default("fixtures/items.json")
+```
+
+原生归档器默认限制 cassette 为 10 MB，先写入同目录临时文件并同步，再执行不覆盖重命名；`save_cassette_replace` 才会显式替换已有文件。HTTP 适配器支持标准方法、请求头、文本和 Base64 body，并将响应转回 MoonVCR 模型。底层网络错误不会把 URL 或凭据带进公开错误摘要。
+
+原生边界的完整说明见 [`native/README.md`](native/README.md)。
+
+## 响应契约
+
+契约用于回答“回放响应是否仍满足接口约定”，不是替代完整 OpenAPI 校验：
+
+```mbt
 let contract : @moonvcr.ResponseContract = {
   allowed_statuses: [200],
   required_headers: ["content-type"],
+  required_header_values: [
+    { name: "content-type", expected_value: "application/json", },
+  ],
   body_kind: Some(@moonvcr.ContractBodyKind::ExpectTextBody),
   json_fields: [
     {
@@ -59,95 +95,63 @@ let contract : @moonvcr.ResponseContract = {
       expected_kind: @moonvcr.JsonValueKind::JsonArray,
     },
   ],
+  optional_json_fields: [
+    {
+      path: "/next_page",
+      expected_kind: @moonvcr.JsonValueKind::JsonString,
+    },
+  ],
+  json_array_elements: [
+    {
+      path: "/items",
+      expected_kind: @moonvcr.JsonValueKind::JsonObject,
+    },
+  ],
 }
 let report = response.validate_contract(contract)
 if !report.is_valid() {
   println(report.summary())
 }
-~~~
+```
 
-契约校验适合放在 SDK 回归、接口升级和 CI 回放之后；它不是 OpenAPI 或完整 JSON Schema 实现，而是面向 cassette 的小型、确定性验收层。
+契约差异会区分状态码、缺失 header、header 值、body 类型、非法 JSON、缺失字段和 JSON 类型错误。`optional_json_fields` 允许字段缺席，但字段出现时仍必须满足类型；`json_array_elements` 校验数组中每个直接元素的类型。报告只展示 header 值的长度和稳定指纹，不展示 header 原文或 JSON 值。
 
-## 本地验证
+## 三个实际使用场景
 
-安装 MoonBit 工具链后，在仓库根目录运行：
+1. **SDK 回归**：录制经过审查和脱敏的第三方 API 响应，后续每次 SDK 改动都在 `StrictOffline` 中重复验证，不受供应商限流和数据波动影响。
+2. **CI 无网回归**：CI 只加载仓库内 cassette，未命中立即失败；`assert_complete` 还能发现测试漏掉了 cassette 中的交互。
+3. **接口契约变更**：旧 cassette 回放后执行 `validate_contract`，可在合并请求中定位状态码、必需 header、body 或 JSON 字段类型变化。
+
+## 验证
+
+核心目标（默认 portable/wasm）：
 
 ```text
+moon fmt --check
 moon check
 moon build
 moon test
-moon fmt --check
 moon run cmd/moonvcr-demo
 moon package --list
 ```
 
-当前测试套件共 59 个测试：原有核心回归 42 个、响应契约测试 10 个、可靠性回归 7 个。命令示例会在 transport 被调用时主动失败；成功输出 `offline replay status=200` 即证明
-strict-offline 回放没有触网。cassette 是纯文本 JSON，变更可以通过 Git 逐行审阅。
-record 模式只调用调用方显式传入的 transport，replay 和 strict-offline 模式不会调用
-transport；核心库不拦截系统流量，也不会暗中联网。
+原生目标（CI 在 Ubuntu 上执行）：
 
-可靠性测试矩阵和可复制的验收结果见 [RELIABILITY_ACCEPTANCE.md](RELIABILITY_ACCEPTANCE.md)。
-
-## 最小内存回放
-
-回放不需要网络或文件系统，调用方可以把 cassette 文本交给 `Cassette::decode`，再创建 `Replay` 会话：
-
-```mbt
-let cassette = Cassette::decode(cassette_text)
-let session = Session::with_defaults(cassette, Replay)
-let offline_transport = (_ : Request) => {
-  Err(TransportError::Failed("network disabled"))
-}
-let response = session.send(request, offline_transport)
+```text
+moon check --target native
+moon build --target native
+moon test --target native
+moon run --target native cmd/moonvcr-native-demo
+moon run --target native cmd/moonvcr-native-record
+moon run --target native cmd/moonvcr-native-replay
 ```
 
-匹配会规范化方法、URL/query、选定的 header 和 body，并按 cassette 顺序消费重复请求。未命中返回 `SessionError::ReplayMiss`，而不是尝试访问网络。
+原生 demo 的稳定输出是 `native archive roundtrip interactions=1`；随后两个独立进程分别输出 `native record saved interactions=1` 和 `native replay offline status=200`。当前核心回归套件包含 68 个测试；GitHub Actions 同时检查 portable 和 native 目标。Windows 本地执行 native build/test 需要安装可用的 C 编译器，缺少编译器时仍可运行所有核心检查和测试。
 
-## 项目边界
+## 开源信息
 
-MoonVCR 是原创 MoonBit 实现，不机械移植其他语言的 VCR 源码。项目借鉴 HTTP 录制/回放工具的通用思想，但会保持自己的数据结构、匹配语义和 MoonBit API。第一版不实现 TLS MITM、系统代理或自动拦截任意进程流量。录制前仍应审核请求和响应中是否存在个人数据；默认脱敏器会优先清理常见凭据，业务专用字段请通过 RedactionConfig 显式配置。
-
-## 显式录制
-
-MoonVCR 不会自行拦截网络。调用方把已有 HTTP 客户端封装成 transport，再交给 Record
-会话；transport 收到的是真实请求，cassette 中保存的是脱敏副本：
-
-~~~mbt
-let session = Session::with_defaults(Cassette::empty(), Record)
-let transport = (request : Request) => {
-  // 在这里调用你的 HTTP 客户端，并转换成 Response。
-  http_client_send(request)
-}
-let response = session.send(request, transport)
-let cassette_text = Cassette::encode(session.cassette())
-~~~
-
-如果暂时没有 HTTP 客户端，可以用仓库自带的有限响应适配器做确定性测试：
-
-~~~mbt
-let scripted = ScriptedTransport::new([
-  { status: 200, headers: [], body: Text("ok"), },
-])
-let session = Session::with_defaults(Cassette::empty(), Record)
-let response = session.send(request, (request) => scripted.send(request))
-~~~
-
-RedactionConfig::default() 会清理常见 Authorization、Cookie、API key、token 和签名字段。
-还可以在 json_paths 中配置 /credentials/token 或 credentials.token；配置路径缺失或
-JSON 无效时返回 SessionError::RedactionFailed，该交互不会写入 cassette。
-
-## 诊断与安全
-
-未命中返回 SessionError::ReplayMiss，而不是尝试访问网络。需要查看原因时，可以在同一个
-会话上调用 session.diagnose(request)。摘要只包含字段类型、长度和指纹，不包含未知 header、
-body 或凭据原文。运行仓库中的离线复现命令：
-
-~~~text
-moon run cmd/moonvcr-demo
-~~~
-
-## 许可证
-
-Apache License 2.0，详见 [LICENSE](LICENSE)。
-
-`MoonVCR_submission.md` 只用于赛事报名，含联系方式，已被 Git 和发布包排除；它不属于 MoonVCR 运行时或公开包内容。
+- GitHub：<https://github.com/chenqi-arch/moonbit-project>
+- Mooncakes 模块：`chenqi-arch/moonbit-project`
+- 许可证：Apache License 2.0，见 [`LICENSE`](LICENSE)
+- 设计、需求和任务记录：[`specs/moonvcr-final/`](specs/moonvcr-final/)
+- 发布与验收记录：[`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md)、[`RELIABILITY_ACCEPTANCE.md`](RELIABILITY_ACCEPTANCE.md)

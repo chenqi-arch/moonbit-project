@@ -1,0 +1,10 @@
+import {
+  "chenqi-arch/moonbit-project" @moonvcr,
+  "chenqi-arch/moonbit-project/native",
+  "moonbitlang/async",
+  "moonbitlang/async/fs",
+}
+
+pkgtype(kind: "executable")
+
+supported_targets = "native"
