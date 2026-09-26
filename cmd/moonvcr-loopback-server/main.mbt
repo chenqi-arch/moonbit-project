@@ -80,5 +80,8 @@ async fn main {
     reuse_addr=true,
   )
   println("MoonVCR loopback ready on 127.0.0.1:38081")
-  server.run_forever(allow_failure=false) <| handle_request
+  // A health probe or one-shot client normally closes its connection after the
+  // response. Keep that connection-local EOF from terminating the whole test
+  // service before the next acceptance request arrives.
+  server.run_forever(allow_failure=true) <| handle_request
 }

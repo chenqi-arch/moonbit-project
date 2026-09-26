@@ -111,7 +111,16 @@ jobs:
             kill "$server_pid" 2>/dev/null || true
             wait "$server_pid" 2>/dev/null || true
           }
-          trap cleanup EXIT
+          report_and_cleanup() {
+            status=$?
+            if [ "$status" -ne 0 ]; then
+              echo "=== loopback server log ==="
+              cat _build/loopback-server.log || true
+            fi
+            cleanup
+            exit "$status"
+          }
+          trap report_and_cleanup EXIT
 
           ready=0
           for _ in $(seq 1 30); do
