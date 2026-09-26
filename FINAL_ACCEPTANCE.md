@@ -15,12 +15,15 @@
 | 真实 HTTP 与跨进程回放 | GitHub loopback acceptance | 通过：真实 HTTP、录制 2 条、关服、新进程回放 2 条，网络调用 0 |
 | 容量资源数据 | 本地 `Measure-Command`；CI `/usr/bin/time -v` | 100/1,000/10,000 条 3/3 通过；Ubuntu CI 0.34 s，最大 RSS 67,120 KB |
 | 包清单与个人数据排除 | `moon package --list` + ZIP/tracked-file scan | 本地通过：64 个归档条目，含 LICENSE，不含申报书、个人联系方式、凭据或 Git 元数据 |
-| 独立消费者 | 导入 `0.3.0` 预演归档；发布后从 Mooncakes 重装 | 预演归档 check 与 strict-offline smoke 通过，正式包待发布复验 |
-| Mooncakes 发布 | 正式版本、服务端结果、下载复验 | 待最终门禁全绿 |
+| 独立消费者 | 从 Mooncakes 安装 `chenqi-arch/moonbit-project@0.3.0` | `moon check` 与 strict-offline smoke 通过，输出 `registry consumer passed version=0.3.0 status=200 network_calls=0` |
+| 正式包场景 | 从消费者的 `.mooncakes` 缓存直接运行 | pagination、order-contract、restricted-ci 全部零退出；对应三个 failure 命令全部非零退出 |
+| Mooncakes 发布 | `moon publish`、服务端结果、重新下载复验 | `200 OK`；公开的 `0.3.0` 已被全新消费者下载并实测 |
 
 Mooncakes 预演证据：`moon publish --dry-run` 的服务端状态为 `202 Accepted`，明确返回 `0.3.0` 预演成功且未产生变更。从该归档创建的独立消费者输出 `independent consumer passed version=0.3.0 status=200 network_calls=0`。
 
-GitHub 冻结前验收证据：commit `222fdb2`，Actions run [36245555879](https://github.com/chenqi-arch/moonbit-project/actions/runs/36245555879)，`check` 与 `native` job 全部成功。该证据只完成 A–D 工程门禁，不代表新版本已发布。
+正式发布证据：发布 commit 与标签 `v0.3.0` 均指向 `a8ab4767cf1ccfb71eff3ae88f7b018bb4eb0e01`；对应 Actions run [36246697037](https://github.com/chenqi-arch/moonbit-project/actions/runs/36246697037) 的 `check` 与 `native` job 全部成功。`moon publish` 返回 `200 OK`。随后在全新目录通过依赖解析器下载 `chenqi-arch/moonbit-project@0.3.0`，独立消费者与正式包内三组场景均通过，故障命令均按设计非零退出。
+
+Windows 本地直接在很深的 `.mooncakes` 缓存目录对整个正式包执行一次全包 `moon check` 时，MoonBit `v0.10.12` 因生成路径缺失报告 compiler bug；这不是项目断言失败。验收采用两项互补证据：全新消费者对公开 API 的 `moon check` 成功，以及同一发布 SHA 的 Ubuntu CI 完整 check/native 测试成功。未将该 Windows 工具链异常记为通过。
 
 ## 平台与边界
 

@@ -35,11 +35,14 @@
 
 ## 发布后必须填写的证据
 
-- 发布 commit 与 tag SHA；
-- 对应 GitHub Actions run URL；
-- Mooncakes 服务端成功状态；
-- 公开包重新下载、check 与运行输出；
-- `specs/moonvcr-final/tasks.md` 的 E1/E2 只在上述证据齐全后勾选。
+- [x] 发布 commit 与标签 `v0.3.0` 均指向 `a8ab4767cf1ccfb71eff3ae88f7b018bb4eb0e01`；
+- [x] GitHub Actions run [36246697037](https://github.com/chenqi-arch/moonbit-project/actions/runs/36246697037) 的 `check` 与 `native` job 全绿；
+- [x] `moon publish` 返回 `200 OK`，正式发布 `chenqi-arch/moonbit-project@0.3.0`；
+- [x] 全新消费者从 Mooncakes 下载 0.3.0，`moon check` 通过并输出 `registry consumer passed version=0.3.0 status=200 network_calls=0`；
+- [x] 公网包中的 pagination、order-contract、restricted-ci 三组成功场景全部零退出，对应 failure 命令全部非零退出；
+- [x] `specs/moonvcr-final/tasks.md` 的 E1/E2 已在上述证据齐全后勾选。
+
+Windows 深层 `.mooncakes` 缓存目录上的全包 `moon check` 触发 MoonBit `v0.10.12` 的生成路径缺失 compiler bug；公开 API 消费者 check、公开包场景运行和同一发布 SHA 的 Ubuntu 完整 CI 均成功。该工具链异常未被记为项目测试通过，详细边界见 `FINAL_ACCEPTANCE.md`。
 
 ## 边界与开源合规
 
