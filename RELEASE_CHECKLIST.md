@@ -1,62 +1,53 @@
-# MoonVCR 0.2.0 发布与比赛复核清单
+# MoonVCR 0.3.0 发布与终审复核清单
 
-这份清单记录 0.2.0 从本地验收到正式发布的可复验结果。0.1.0 是此前已经发布的基线版本；0.2.0 包含响应契约校验和可靠性测试整改，已通过 GitHub CI、Mooncakes 发布和隔离消费者安装验证。
+本清单用于核对 `chenqi-arch/moonbit-project@0.3.0` 的源码、CI、Mooncakes 包和消费者行为。发布结果只能在实际成功后写入 `FINAL_ACCEPTANCE.md`，不预先声明通过。
 
-## 当前包信息
+## 包信息
 
 | 项目 | 值 |
 | --- | --- |
 | 模块名 | `chenqi-arch/moonbit-project` |
-| 版本 | `0.2.0` |
+| 版本 | `0.3.0` |
 | 许可证 | Apache-2.0 |
 | 仓库 | https://github.com/chenqi-arch/moonbit-project |
-| 包入口 | 根包，导入别名可使用 `@moonvcr` |
+| 核心目标 | wasm；Ubuntu CI 同时验证 native |
+| native 依赖 | `moonbitlang/async@0.22.1` |
 
-## 本地验收命令
+## 发布前门禁
 
-在仓库根目录按顺序运行：
+- [x] `moon fmt --check`、`moon check`、`moon build` 通过；
+- [x] wasm 测试 76/76 通过；
+- [x] Ubuntu native 测试 85/85 通过；
+- [x] 真实 HTTP 与跨进程 strict-offline 回放通过，回放网络调用为 0；
+- [x] 三组业务成功场景通过，三组故障场景均非零退出；
+- [x] 100/1,000/10,000 条容量用例通过，实测数据已记录；
+- [x] `moon package --list` 与归档扫描通过：64 项，含 LICENSE，不含申报书、联系方式、凭据或 Git 元数据；
+- [x] `moon publish --dry-run` 服务端返回 `202 Accepted`，确认未产生变更；
+- [x] 预演归档已被全新消费者模块导入并成功 strict-offline 回放。
 
-~~~text
-moon fmt --check
-moon check
-moon build
-moon test
-moon run cmd/moonvcr-demo
-moon package --list
-git diff --check
-git status --short --branch
-~~~
+## 正式发布步骤
 
-验收重点：
+1. 提交并推送发布文档，等待该确切 SHA 的 `check` 与 `native` job 全绿；
+2. 在该 SHA 创建附注标签 `v0.3.0`，不改写历史；
+3. 执行 `moon publish`，记录 Mooncakes 服务端响应；
+4. 在不使用工作树源码的干净目录执行 `moon fetch chenqi-arch/moonbit-project@0.3.0` 和消费者测试；
+5. 核对标签 SHA、CI run、Mooncakes 版本和最终验收证据一致。
 
-- `moon test` 应保持 59 个测试全部通过；
-- demo 应输出 `offline replay status=200` 和 `recorded interactions=1`；
-- `moon package --list` 应包含源码、测试、README、LICENSE、CI、demo、规格和可靠性验收说明，不应包含 `MoonVCR_submission.md`；
-- `git diff --check` 不应发现空白错误；
-- 发布前工作树应只包含明确准备提交的内容。
+## 发布后必须填写的证据
 
-完整测试矩阵见 [RELIABILITY_ACCEPTANCE.md](RELIABILITY_ACCEPTANCE.md)。
+- 发布 commit 与 tag SHA；
+- 对应 GitHub Actions run URL；
+- Mooncakes 服务端成功状态；
+- 公开包重新下载、check 与运行输出；
+- `specs/moonvcr-final/tasks.md` 的 E1/E2 只在上述证据齐全后勾选。
 
-## 发布过程与结果
+## 边界与开源合规
 
-1. 已在干净的 Windows PowerShell 环境完成本地验收。
-2. 已检查 `moon.mod`、README、申报材料和报名信息使用同一个版本号 `0.2.0`。
-3. 已创建有实际内容的普通 Git 提交，没有修改既有历史。
-4. 已推送 `main`，GitHub Actions `MoonVCR CI` 运行成功。
-5. 已执行 `moon publish --dry-run --frozen`；服务端返回 `202 Accepted`，明确表示 dry-run 成功且未产生变更。
-6. 已执行 `moon publish --frozen`，服务端返回 `200 OK`，正式发布 `chenqi-arch/moonbit-project@0.2.0`。
-7. 已在隔离消费者项目执行 `moon fetch chenqi-arch/moonbit-project@0.2.0`、`moon add`、`moon check`，并运行导入 smoke test 成功。
+- 仓库保留真实普通提交，不改写、不伪造、不为凑数量拆分提交；
+- 项目不宣称 TLS MITM、系统代理、浏览器录制或自动拦截任意进程流量；
+- Record 是否联网由调用方显式 transport 决定；Replay 与 StrictOffline 不调用 transport；
+- 依赖许可来源见 `THIRD_PARTY_NOTICES.md`，安全与隐私边界见 `SECURITY.md`。
 
-正式发布证据：Git commit `f696d26`，GitHub Actions run `35334754331`，Mooncakes 服务端 `200 OK`；消费者运行输出 `consumer import ok: MoonVCR 0.2.0`。
+## 历史基线
 
-## 比赛材料边界
-
-- GitHub 仓库保持公开，历史使用普通 Git 提交，不改写、不伪造；
-- 当前历史已经超过赛事要求的 10 个有效提交；
-- 申报书只描述已经实现并能复验的显式 transport 录制、脱敏、确定性回放、strict-offline、响应契约校验和 mismatch 诊断；
-- 申报书中的可靠性验收命令和结果必须与 `RELIABILITY_ACCEPTANCE.md` 一致；
-- `MoonVCR_submission.md` 只保存在本地用于报名，含联系方式，不进入 GitHub 或 Mooncakes 包。
-
-## 明确不宣称
-
-第一版不具备 TLS MITM、系统代理、浏览器录制或自动拦截任意进程流量。Record 是否访问真实网络完全由调用方传入的 transport 决定；Replay 和 StrictOffline 不调用 transport。
+`0.2.0` 的历史发布证据为 commit `f696d26`、GitHub Actions run `35334754331`、Mooncakes `200 OK`；该版本不含 0.3.0 的 native HTTP/档案与新验收场景。

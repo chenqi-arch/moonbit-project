@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+暂无。
+
+## 0.3.0 - 2026-09-26
+
 ### Added
 
 - 官方 async native HTTP 适配器，支持显式毫秒超时和安全错误分类；

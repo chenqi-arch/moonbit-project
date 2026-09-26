@@ -13,9 +13,9 @@ MoonVCR 不拦截系统流量。录制只会调用使用者显式选择的 trans
 
 ## 当前状态
 
-- Mooncakes 已发布稳定基线：`chenqi-arch/moonbit-project@0.2.0`；
-- 仓库 `main` 已冻结为 `0.3.0` 终审候选，包含真实 loopback HTTP、文件档案、独立请求/响应脱敏、增强契约和三组验收场景；
-- `0.3.0` 尚未正式发布；未发布能力不能通过 `0.2.0` 安装获得。
+- 当前稳定版：`chenqi-arch/moonbit-project@0.3.0`；
+- `0.3.0` 包含真实 loopback HTTP、文件档案、独立请求/响应脱敏、增强契约和三组验收场景；
+- `0.2.0` 保留为旧基线，不含上述新能力。
 
 ## 已实现能力
 
@@ -35,13 +35,13 @@ MoonVCR 不拦截系统流量。录制只会调用使用者显式选择的 trans
 
 ## 安装
 
-已发布稳定版：
+安装当前稳定版：
 
 ```text
-moon add chenqi-arch/moonbit-project@0.2.0
+moon add chenqi-arch/moonbit-project@0.3.0
 ```
 
-当前终审候选仍从本仓库验证，版本号为 `0.3.0`，待发布预演、独立消费者验证和冻结 CI 通过后才正式发布。不要把仓库 `main` 的候选能力误写成 `0.2.0` 已发布能力。
+Mooncakes 发布包、Git 标签和 GitHub 验收证据见 `FINAL_ACCEPTANCE.md`。
 
 ## 核心快速开始
 
