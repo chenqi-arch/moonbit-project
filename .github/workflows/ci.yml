@@ -43,6 +43,28 @@ jobs:
       - name: Offline example
         run: moon run cmd/moonvcr-demo
 
+      - name: Business scenario acceptance
+        run: |
+          moon run cmd/moonvcr-pagination
+          moon run cmd/moonvcr-order-contract
+          moon run cmd/moonvcr-restricted-ci
+
+      - name: Failure scenarios must exit nonzero
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scenario in \
+            cmd/moonvcr-pagination-failure \
+            cmd/moonvcr-order-contract-failure \
+            cmd/moonvcr-restricted-ci-failure
+          do
+            if moon run "$scenario"; then
+              echo "$scenario unexpectedly succeeded"
+              exit 1
+            fi
+            echo "$scenario failed as expected"
+          done
+
       - name: Package manifest
         run: moon package --list
 
