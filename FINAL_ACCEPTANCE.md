@@ -6,17 +6,21 @@
 
 | 范围 | 命令或证据 | 当前状态 |
 | --- | --- | --- |
-| 核心格式/检查/构建 | `moon fmt --check`、`moon check`、`moon build` | 本地通过 |
-| 核心测试 | `moon test` | 本地通过，含可靠性与容量用例 |
-| 三组成功场景 | pagination、order-contract、restricted-ci | 本地通过 |
-| 三组故障场景 | 对应 `*-failure` 命令 | 本地确认非零退出 |
+| 核心格式/检查/构建 | `moon fmt --check`、`moon check`、`moon build` | 本地与 GitHub Ubuntu CI 通过 |
+| 核心测试 | `moon test` | 76/76 通过，含可靠性与容量用例 |
+| 三组成功场景 | pagination、order-contract、restricted-ci | 本地与 GitHub Ubuntu CI 通过 |
+| 三组故障场景 | 对应 `*-failure` 命令 | 本地与 GitHub Ubuntu CI 均确认非零退出 |
 | native 类型检查 | `moon check --target native` | Windows 本地通过 |
-| native 构建/测试 | GitHub Ubuntu native job | 待当前候选推送后确认 |
-| 真实 HTTP 与跨进程回放 | GitHub loopback acceptance | 待当前候选推送后确认 |
-| 容量资源数据 | 本地 `Measure-Command`；CI `/usr/bin/time -v` | 本地 100/1,000/10,000 条 3/3 通过，约 559 ms；CI 内存与时间待记录 |
+| native 构建/测试 | GitHub Ubuntu native job | 85/85 通过 |
+| 真实 HTTP 与跨进程回放 | GitHub loopback acceptance | 通过：真实 HTTP、录制 2 条、关服、新进程回放 2 条，网络调用 0 |
+| 容量资源数据 | 本地 `Measure-Command`；CI `/usr/bin/time -v` | 100/1,000/10,000 条 3/3 通过；Ubuntu CI 0.34 s，最大 RSS 67,120 KB |
 | 包清单与个人数据排除 | `moon package --list` + ZIP/tracked-file scan | 本地通过：64 个归档条目，含 LICENSE，不含申报书、个人联系方式、凭据或 Git 元数据 |
-| 独立消费者 | 安装候选正式包并运行场景 | 待版本冻结 |
+| 独立消费者 | 导入 `0.3.0` 预演归档；发布后从 Mooncakes 重装 | 预演归档 check 与 strict-offline smoke 通过，正式包待发布复验 |
 | Mooncakes 发布 | 正式版本、服务端结果、下载复验 | 待最终门禁全绿 |
+
+Mooncakes 预演证据：`moon publish --dry-run` 的服务端状态为 `202 Accepted`，明确返回 `0.3.0` 预演成功且未产生变更。从该归档创建的独立消费者输出 `independent consumer passed version=0.3.0 status=200 network_calls=0`。
+
+GitHub 冻结前验收证据：commit `222fdb2`，Actions run [36245555879](https://github.com/chenqi-arch/moonbit-project/actions/runs/36245555879)，`check` 与 `native` job 全部成功。该证据只完成 A–D 工程门禁，不代表新版本已发布。
 
 ## 平台与边界
 

@@ -1,6 +1,6 @@
 # Migration guide
 
-## 从 0.2.0 源码迁移到当前候选
+## 从 0.2.0 迁移到 0.3.0 候选
 
 ### RedactionConfig
 
