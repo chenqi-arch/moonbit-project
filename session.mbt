@@ -39,7 +39,7 @@ pub fn SessionError::summary(self : SessionError) -> String {
 pub(all) struct Session {
   mut cassette : Cassette
   config : MatchConfig
-  redaction : RedactionConfig
+  redaction : RedactionPolicy
   mode : SessionMode
   mut consumed : Array[Bool]
 } derive(@debug.Debug)
@@ -67,11 +67,27 @@ pub fn Session::new_with_redaction(
   config : MatchConfig,
   redaction : RedactionConfig,
 ) -> Session {
+  Session::new_with_redaction_policy(
+    cassette,
+    mode,
+    config,
+    RedactionPolicy::symmetric(redaction),
+  )
+}
+
+///|
+/// Create a session whose request and response redaction rules are independent.
+pub fn Session::new_with_redaction_policy(
+  cassette : Cassette,
+  mode : SessionMode,
+  config : MatchConfig,
+  redaction : RedactionPolicy,
+) -> Session {
   let count = cassette.interactions.length()
   {
     cassette: copy_cassette(cassette),
     config: copy_match_config(config),
-    redaction: copy_redaction_config(redaction),
+    redaction: copy_redaction_policy(redaction),
     mode,
     consumed: Array::make(count, false),
   }
@@ -111,8 +127,8 @@ pub fn Session::record_response(
   request : Request,
   response : Response,
 ) -> Result[Response, SessionError] {
-  let interaction = { request, response, }
-  match redact_interaction(interaction, self.redaction) {
+  let interaction : Interaction = { request, response, }
+  match redact_interaction_with_policy(interaction, self.redaction) {
     Ok(safe_interaction) => {
       self.cassette.interactions.push(safe_interaction)
       Ok(response)
@@ -128,7 +144,7 @@ pub fn Session::replay(
   self : Session,
   request : Request,
 ) -> Result[Response, SessionError] {
-  match redact_request(request, self.redaction) {
+  match redact_request(request, self.redaction.request) {
     Err(error) => Err(RedactionFailed(error))
     Ok(safe_request) =>
       match
@@ -150,7 +166,7 @@ pub fn Session::diagnose(self : Session, request : Request) -> MismatchReport {
     self.cassette,
     self.config,
     self.consumed,
-    self.redaction,
+    self.redaction.request,
   )
 }
 
@@ -257,5 +273,14 @@ fn copy_redaction_config(config : RedactionConfig) -> RedactionConfig {
     headers: config.headers.map(value => value + ""),
     query_parameters: config.query_parameters.map(value => value + ""),
     json_paths: config.json_paths.map(value => value + ""),
+    optional_json_paths: config.optional_json_paths.map(value => value + ""),
+  }
+}
+
+///|
+fn copy_redaction_policy(policy : RedactionPolicy) -> RedactionPolicy {
+  {
+    request: copy_redaction_config(policy.request),
+    response: copy_redaction_config(policy.response),
   }
 }

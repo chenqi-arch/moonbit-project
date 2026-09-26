@@ -222,6 +222,7 @@ test "diagnostics reuse configured JSON redaction paths" {
     headers: [],
     query_parameters: [],
     json_paths: ["/credentials/token"],
+    optional_json_paths: [],
   }
   let report = diagnose_mismatch_with_redaction(
     actual,

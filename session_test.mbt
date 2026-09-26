@@ -148,7 +148,12 @@ test "record stores a redacted interaction but returns the real response" {
     Cassette::empty(),
     Record,
     MatchConfig::default(),
-    { headers: [], query_parameters: [], json_paths: ["/token"], },
+    {
+      headers: [],
+      query_parameters: [],
+      json_paths: ["/token"],
+      optional_json_paths: [],
+    },
   )
   let transport = (_ : Request) => Ok(real_response)
   match session.send(request, transport) {
@@ -179,12 +184,60 @@ test "record stores a redacted interaction but returns the real response" {
 }
 
 ///|
+test "record session supports independent request and response redaction" {
+  let policy : RedactionPolicy = {
+    request: {
+      headers: [],
+      query_parameters: [],
+      json_paths: ["/request_token"],
+      optional_json_paths: [],
+    },
+    response: {
+      headers: [],
+      query_parameters: [],
+      json_paths: ["/response_token"],
+      optional_json_paths: [],
+    },
+  }
+  let session = Session::new_with_redaction_policy(
+    Cassette::empty(),
+    Record,
+    MatchConfig::default(),
+    policy,
+  )
+  let request : Request = {
+    method: "POST",
+    url: "https://example.test/items",
+    headers: [],
+    body: Text("{\"request_token\":\"request-secret\"}"),
+  }
+  let response : Response = {
+    status: 201,
+    headers: [],
+    body: Text("{\"response_token\":\"response-secret\"}"),
+  }
+  match session.record_response(request, response) {
+    Err(_) => assert_true(false)
+    Ok(_) => {
+      let encoded = session.cassette().encode()
+      assert_true(!encoded.contains("request-secret"))
+      assert_true(!encoded.contains("response-secret"))
+    }
+  }
+}
+
+///|
 test "redaction failure does not append an interaction" {
   let session = Session::new_with_redaction(
     Cassette::empty(),
     Record,
     MatchConfig::default(),
-    { headers: [], query_parameters: [], json_paths: ["/required"], },
+    {
+      headers: [],
+      query_parameters: [],
+      json_paths: ["/required"],
+      optional_json_paths: [],
+    },
   )
   let request = session_request("https://example.test")
   let response : Response = { status: 200, headers: [], body: Text("{}"), }
@@ -216,6 +269,7 @@ test "replay applies the same custom JSON redaction view" {
     headers: [],
     query_parameters: [],
     json_paths: ["/credentials/token"],
+    optional_json_paths: [],
   }
   let session = Session::new_with_redaction(
     cassette,
@@ -246,7 +300,12 @@ test "replay redaction failure is typed and does not call transport" {
     Cassette::empty(),
     Replay,
     MatchConfig::default(),
-    { headers: [], query_parameters: [], json_paths: ["/required"], },
+    {
+      headers: [],
+      query_parameters: [],
+      json_paths: ["/required"],
+      optional_json_paths: [],
+    },
   )
   let request : Request = {
     method: "POST",

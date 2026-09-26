@@ -12,6 +12,18 @@ pub(all) struct RedactionConfig {
   headers : Array[String]
   query_parameters : Array[String]
   json_paths : Array[String]
+  optional_json_paths : Array[String]
+} derive(Eq, @debug.Debug)
+
+///|
+/// Independent request and response rules for a recorded interaction.
+///
+/// Keeping the two sides separate avoids requiring a request-only path in a
+/// response body (or vice versa). `RedactionConfig` remains available for the
+/// symmetric compatibility API.
+pub(all) struct RedactionPolicy {
+  request : RedactionConfig
+  response : RedactionConfig
 } derive(Eq, @debug.Debug)
 
 ///|
@@ -27,7 +39,20 @@ pub fn RedactionConfig::default() -> RedactionConfig {
       "signature", "sig", "key", "secret",
     ],
     json_paths: [],
+    optional_json_paths: [],
   }
+}
+
+///|
+pub fn RedactionPolicy::default() -> RedactionPolicy {
+  { request: RedactionConfig::default(), response: RedactionConfig::default(), }
+}
+
+///|
+/// Apply one configuration to both sides for compatibility with the original
+/// MoonVCR API.
+pub fn RedactionPolicy::symmetric(config : RedactionConfig) -> RedactionPolicy {
+  { request: config, response: config, }
 }
 
 ///|
@@ -346,6 +371,17 @@ fn redact_json_text(
       Err(error) => return Err(error)
     }
   }
+  for path in config.optional_json_paths {
+    let tokens = match parse_redaction_path(path + "") {
+      Ok(tokens) => tokens
+      Err(error) => return Err(error)
+    }
+    match redact_json_at(json, tokens, 0, path + "") {
+      Ok(updated) => json = updated
+      Err(MissingPath(_)) => ()
+      Err(error) => return Err(error)
+    }
+  }
   Ok(json.stringify())
 }
 
@@ -355,7 +391,8 @@ fn redact_body(
   config : RedactionConfig,
 ) -> Result[Body, RedactionError] {
   match body {
-    Text(text) if config.json_paths.length() > 0 =>
+    Text(text) if config.json_paths.length() > 0 ||
+      config.optional_json_paths.length() > 0 =>
       match redact_json_text(text, config) {
         Ok(value) => Ok(Text(value))
         Err(error) => Err(error)
@@ -403,11 +440,23 @@ pub fn redact_interaction(
   interaction : Interaction,
   config : RedactionConfig,
 ) -> Result[Interaction, RedactionError] {
+  redact_interaction_with_policy(
+    interaction,
+    RedactionPolicy::symmetric(config),
+  )
+}
+
+///|
+/// Redact a recorded request and response with independent policies.
+pub fn redact_interaction_with_policy(
+  interaction : Interaction,
+  policy : RedactionPolicy,
+) -> Result[Interaction, RedactionError] {
   let { request, response, } = interaction
-  match redact_request(request, config) {
+  match redact_request(request, policy.request) {
     Err(error) => Err(error)
     Ok(safe_request) =>
-      match redact_response(response, config) {
+      match redact_response(response, policy.response) {
         Err(error) => Err(error)
         Ok(safe_response) =>
           Ok({ request: safe_request, response: safe_response, })

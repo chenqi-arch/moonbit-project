@@ -133,6 +133,7 @@ test "reliability: recorded cassette excludes configured credentials" {
     headers: [],
     query_parameters: [],
     json_paths: ["/credentials/token"],
+    optional_json_paths: [],
   }
   let recorder = Session::new_with_redaction(
     Cassette::empty(),
