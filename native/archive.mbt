@@ -3,7 +3,9 @@
 pub suberror ArchiveError {
   MissingFile
   InvalidSizeLimit
+  InvalidInteractionLimit
   TooLarge(Int64)
+  TooManyInteractions(Int)
   ReadFailed
   DecodeFailed(@moonvcr.CassetteError)
   AlreadyExists
@@ -14,6 +16,9 @@ pub suberror ArchiveError {
 
 ///|
 pub const DEFAULT_MAX_CASSETTE_BYTES : Int64 = 10_000_000L
+
+///|
+pub const DEFAULT_MAX_CASSETTE_INTERACTIONS : Int = 100_000
 
 ///|
 async fn archive_exists(path : String) -> Bool raise ArchiveError {
@@ -28,8 +33,21 @@ pub async fn load_cassette(
   path : String,
   max_bytes : Int64,
 ) -> @moonvcr.Cassette raise ArchiveError {
+  load_cassette_with_limits(path, max_bytes, DEFAULT_MAX_CASSETTE_INTERACTIONS)
+}
+
+///|
+/// Load with explicit byte and decoded-interaction limits.
+pub async fn load_cassette_with_limits(
+  path : String,
+  max_bytes : Int64,
+  max_interactions : Int,
+) -> @moonvcr.Cassette raise ArchiveError {
   if max_bytes < 0L {
     raise InvalidSizeLimit
+  }
+  if max_interactions < 0 {
+    raise InvalidInteractionLimit
   }
   if !archive_exists(path) {
     raise MissingFile
@@ -40,9 +58,13 @@ pub async fn load_cassette(
   }
   let data = @fs.read_file(path) catch { _ => raise ReadFailed }
   let text = data.text() catch { _ => raise ReadFailed }
-  @moonvcr.Cassette::decode(text) catch {
+  let cassette = @moonvcr.Cassette::decode(text) catch {
     error => raise DecodeFailed(error)
   }
+  if cassette.interactions.length() > max_interactions {
+    raise TooManyInteractions(cassette.interactions.length())
+  }
+  cassette
 }
 
 ///|
@@ -103,7 +125,10 @@ pub fn ArchiveError::summary(self : ArchiveError) -> String {
   match self {
     MissingFile => "cassette file missing"
     InvalidSizeLimit => "cassette size limit must not be negative"
+    InvalidInteractionLimit => "cassette interaction limit must not be negative"
     TooLarge(size) => "cassette exceeds size limit: " + size.to_string()
+    TooManyInteractions(count) =>
+      "cassette exceeds interaction limit: " + count.to_string()
     ReadFailed => "cassette file read failed"
     DecodeFailed(_) => "cassette JSON decode failed"
     AlreadyExists => "cassette destination already exists"

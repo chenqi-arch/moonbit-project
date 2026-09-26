@@ -37,6 +37,9 @@ jobs:
       - name: Test
         run: moon test
 
+      - name: Capacity acceptance with resource report
+        run: /usr/bin/time -v moon test --target wasm capacity_test.mbt --serial
+
       - name: Formatting
         run: moon fmt --check
 

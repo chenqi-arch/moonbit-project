@@ -56,6 +56,45 @@ async test "cassette archive enforces size guard" {
 
 ///|
 #cfg(target="native")
+async test "cassette archive validates both limits" {
+  let path = "_build/moonvcr-native-limits.json"
+  @fs.remove(path) catch {
+    _ => ()
+  }
+  defer @fs.remove(path)
+  save_cassette_new(path, @moonvcr.example_cassette())
+  let bad_bytes = try {
+    let _ = load_cassette(path, -1L)
+    false
+  } catch {
+    InvalidSizeLimit => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  let bad_count = try {
+    let _ = load_cassette_with_limits(path, 10_000L, -1)
+    false
+  } catch {
+    InvalidInteractionLimit => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  let too_many = try {
+    let _ = load_cassette_with_limits(path, 10_000L, 0)
+    false
+  } catch {
+    TooManyInteractions(1) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  inspect(bad_bytes && bad_count && too_many, content="true")
+}
+
+///|
+#cfg(target="native")
 async test "cassette archive rejects malformed JSON" {
   let path = "_build/moonvcr-native-malformed.json"
   @fs.remove(path) catch {
@@ -68,6 +107,31 @@ async test "cassette archive rejects malformed JSON" {
     false
   } catch {
     DecodeFailed(_) => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  inspect(rejected, content="true")
+}
+
+///|
+#cfg(target="native")
+async test "cassette archive rejects unknown schema versions" {
+  let path = "_build/moonvcr-native-unknown-version.json"
+  @fs.remove(path) catch {
+    _ => ()
+  }
+  defer @fs.remove(path)
+  @fs.write_file(
+    path,
+    "{\"format_version\":999,\"interactions\":[]}",
+    create_mode=@fs.CreateNew,
+  )
+  let rejected = try {
+    let _ = load_cassette_default(path)
+    false
+  } catch {
+    DecodeFailed(@moonvcr.UnsupportedVersion(999)) => true
     _ => false
   } noraise {
     _ => false
@@ -125,4 +189,18 @@ async test "temporary collision preserves existing destination" {
   }
   inspect(rejected, content="true")
   inspect(@fs.file_size(path) == original_size, content="true")
+}
+
+///|
+#cfg(target="native")
+async test "explicit replace installs the complete new cassette" {
+  let path = "_build/moonvcr-native-replace.json"
+  @fs.remove(path) catch {
+    _ => ()
+  }
+  defer @fs.remove(path)
+  save_cassette_new(path, @moonvcr.example_cassette())
+  save_cassette_replace(path, @moonvcr.Cassette::empty())
+  let loaded = load_cassette_default(path)
+  inspect(loaded.interactions.length(), content="0")
 }
