@@ -74,3 +74,40 @@ jobs:
 
       - name: Run native tests
         run: moon test --target native --serial
+
+      - name: Run loopback HTTP and cross-process replay acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _build
+          moon run --target native cmd/moonvcr-loopback-server > _build/loopback-server.log 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          ready=0
+          for _ in $(seq 1 30); do
+            if curl -fsS --max-time 1 http://127.0.0.1:38081/health >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat _build/loopback-server.log
+            exit 1
+          fi
+
+          moon run --target native cmd/moonvcr-native-http-acceptance
+          moon run --target native cmd/moonvcr-native-record
+
+          cleanup
+          trap - EXIT
+          if curl -fsS --max-time 1 http://127.0.0.1:38081/health >/dev/null 2>&1; then
+            echo "loopback server is still reachable after shutdown"
+            exit 1
+          fi
+          moon run --target native cmd/moonvcr-native-replay
