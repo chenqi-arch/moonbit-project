@@ -27,13 +27,32 @@ pub(all) struct JsonFieldContract {
 } derive(Eq, @debug.Debug)
 
 ///|
+/// A rule for the direct elements of a JSON array field. The array itself is
+/// located by `path`; every element must have `expected_kind`.
+pub(all) struct JsonArrayElementContract {
+  path : String
+  expected_kind : JsonValueKind
+} derive(Eq, @debug.Debug)
+
+///|
+/// One required response header value. The value is used only for an exact
+/// comparison; reports expose a length and fingerprint instead of the value.
+pub(all) struct HeaderValueContract {
+  name : String
+  expected_value : String
+} derive(Eq, @debug.Debug)
+
+///|
 /// A small, transport-independent contract for a recorded or replayed response.
 /// Empty arrays mean that the corresponding property is unrestricted.
 pub(all) struct ResponseContract {
   allowed_statuses : Array[Int]
   required_headers : Array[String]
+  required_header_values : Array[HeaderValueContract]
   body_kind : ContractBodyKind?
   json_fields : Array[JsonFieldContract]
+  optional_json_fields : Array[JsonFieldContract]
+  json_array_elements : Array[JsonArrayElementContract]
 } derive(Eq, @debug.Debug)
 
 ///|
@@ -41,6 +60,7 @@ pub(all) struct ResponseContract {
 pub(all) enum ContractViolationKind {
   StatusViolation
   MissingHeaderViolation
+  HeaderValueViolation
   BodyKindViolation
   InvalidJsonViolation
   InvalidJsonPathViolation
@@ -72,8 +92,11 @@ pub fn ResponseContract::permissive() -> ResponseContract {
   {
     allowed_statuses: [],
     required_headers: [],
+    required_header_values: [],
     body_kind: None,
     json_fields: [],
+    optional_json_fields: [],
+    json_array_elements: [],
   }
 }
 
@@ -103,6 +126,7 @@ pub fn ContractViolationKind::label(self : ContractViolationKind) -> String {
   match self {
     StatusViolation => "status"
     MissingHeaderViolation => "missing-header"
+    HeaderValueViolation => "header-value"
     BodyKindViolation => "body-kind"
     InvalidJsonViolation => "invalid-json"
     InvalidJsonPathViolation => "invalid-json-path"
@@ -194,6 +218,22 @@ fn response_has_header(headers : Array[Header], required : String) -> Bool {
 }
 
 ///|
+fn response_header_value(headers : Array[Header], required : String) -> String? {
+  let expected = normalized_header_name(required)
+  for header in headers {
+    if normalized_header_name(header.name) == expected {
+      return Some(header.value + "")
+    }
+  }
+  None
+}
+
+///|
+fn safe_header_value(value : String) -> String {
+  "<len:" + value.length().to_string() + ",fp:" + safe_fingerprint(value) + ">"
+}
+
+///|
 fn json_value_at(value : Json, tokens : Array[String]) -> Json? {
   let mut current = value
   for token in tokens {
@@ -232,8 +272,9 @@ fn add_contract_violation(
 ///|
 /// Validate a response without performing network or file-system access.
 ///
-/// Violations are emitted in a stable order: status, required headers, body
-/// kind, then JSON field rules in caller-provided order.
+/// Violations are emitted in a stable order: status, required headers, header
+/// values, body kind, required JSON fields, optional JSON fields, then array
+/// element rules in caller-provided order.
 pub fn Response::validate_contract(
   self : Response,
   contract : ResponseContract,
@@ -259,6 +300,29 @@ pub fn Response::validate_contract(
       )
     }
   }
+  for required in contract.required_header_values {
+    match response_header_value(self.headers, required.name) {
+      None =>
+        add_contract_violation(
+          violations,
+          HeaderValueViolation,
+          "header:" + normalized_header_name(required.name),
+          safe_header_value(required.expected_value),
+          "missing",
+        )
+      Some(actual) =>
+        if normalized_header_value(actual) !=
+          normalized_header_value(required.expected_value) {
+          add_contract_violation(
+            violations,
+            HeaderValueViolation,
+            "header:" + normalized_header_name(required.name),
+            safe_header_value(required.expected_value),
+            safe_header_value(actual),
+          )
+        }
+    }
+  }
   match contract.body_kind {
     Some(expected) => {
       let actual = response_body_kind(self.body)
@@ -274,7 +338,9 @@ pub fn Response::validate_contract(
     }
     None => ()
   }
-  if contract.json_fields.length() > 0 {
+  if contract.json_fields.length() > 0 ||
+    contract.optional_json_fields.length() > 0 ||
+    contract.json_array_elements.length() > 0 {
     match self.body {
       Text(text) => {
         let parsed = @json.parse(text) catch {
@@ -324,6 +390,85 @@ pub fn Response::validate_contract(
                 )
               }
             }
+          }
+        }
+        for field in contract.optional_json_fields {
+          let tokens = match parse_redaction_path(field.path) {
+            Ok(tokens) => tokens
+            Err(_) => {
+              add_contract_violation(
+                violations,
+                InvalidJsonPathViolation,
+                field.path,
+                "valid JSON Pointer or dot path",
+                "invalid path",
+              )
+              continue
+            }
+          }
+          match json_value_at(parsed, tokens) {
+            None => ()
+            Some(value) => {
+              let actual = json_value_kind(value)
+              if actual != field.expected_kind {
+                add_contract_violation(
+                  violations,
+                  JsonTypeViolation,
+                  field.path,
+                  field.expected_kind.label(),
+                  actual.label(),
+                )
+              }
+            }
+          }
+        }
+        for rule in contract.json_array_elements {
+          let tokens = match parse_redaction_path(rule.path) {
+            Ok(tokens) => tokens
+            Err(_) => {
+              add_contract_violation(
+                violations,
+                InvalidJsonPathViolation,
+                rule.path,
+                "valid JSON Pointer or dot path",
+                "invalid path",
+              )
+              continue
+            }
+          }
+          match json_value_at(parsed, tokens) {
+            None =>
+              add_contract_violation(
+                violations,
+                MissingJsonFieldViolation,
+                rule.path,
+                "array",
+                "missing",
+              )
+            Some(Array(items)) => {
+              let mut index = 0
+              for item in items {
+                let actual = json_value_kind(item)
+                if actual != rule.expected_kind {
+                  add_contract_violation(
+                    violations,
+                    JsonTypeViolation,
+                    rule.path + "/" + index.to_string(),
+                    rule.expected_kind.label(),
+                    actual.label(),
+                  )
+                }
+                index += 1
+              }
+            }
+            Some(other) =>
+              add_contract_violation(
+                violations,
+                JsonTypeViolation,
+                rule.path,
+                "array",
+                json_value_kind(other).label(),
+              )
           }
         }
       }

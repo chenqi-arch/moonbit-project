@@ -96,35 +96,48 @@ pub fn Session::send(
   match self.mode {
     Record =>
       match transport(request) {
-        Ok(response) => {
-          let interaction = { request, response, }
-          match redact_interaction(interaction, self.redaction) {
-            Ok(safe_interaction) => {
-              self.cassette.interactions.push(safe_interaction)
-              Ok(response)
-            }
-            Err(error) => Err(RedactionFailed(error))
-          }
-        }
+        Ok(response) => self.record_response(request, response)
         Err(error) => Err(TransportFailed(error))
       }
-    Replay | StrictOffline =>
-      match redact_request(request, self.redaction) {
-        Err(error) => Err(RedactionFailed(error))
-        Ok(safe_request) =>
-          match
-            match_request(
-              safe_request,
-              self.cassette,
-              self.config,
-              self.consumed,
-            ) {
-            Matched(index) => {
-              self.consumed[index] = true
-              Ok(self.cassette.interactions[index].response)
-            }
-            NoMatch(candidates) => Err(ReplayMiss(candidates))
-          }
+    Replay | StrictOffline => self.replay(request)
+  }
+}
+
+///|
+/// Persist one response obtained by an external, possibly asynchronous
+/// transport. The response returned to the caller remains unredacted.
+pub fn Session::record_response(
+  self : Session,
+  request : Request,
+  response : Response,
+) -> Result[Response, SessionError] {
+  let interaction = { request, response, }
+  match redact_interaction(interaction, self.redaction) {
+    Ok(safe_interaction) => {
+      self.cassette.interactions.push(safe_interaction)
+      Ok(response)
+    }
+    Err(error) => Err(RedactionFailed(error))
+  }
+}
+
+///|
+/// Replay one request without accepting a transport callback. This is useful
+/// to platform adapters that need an asynchronous HTTP layer.
+pub fn Session::replay(
+  self : Session,
+  request : Request,
+) -> Result[Response, SessionError] {
+  match redact_request(request, self.redaction) {
+    Err(error) => Err(RedactionFailed(error))
+    Ok(safe_request) =>
+      match
+        match_request(safe_request, self.cassette, self.config, self.consumed) {
+        Matched(index) => {
+          self.consumed[index] = true
+          Ok(copy_response(self.cassette.interactions[index].response))
+        }
+        NoMatch(candidates) => Err(ReplayMiss(candidates))
       }
   }
 }

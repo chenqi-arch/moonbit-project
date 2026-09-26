@@ -20,6 +20,9 @@ test "response contract accepts status headers body and JSON field kinds" {
   let contract : ResponseContract = {
     allowed_statuses: [200, 201],
     required_headers: ["Content-Type", "x-request-id"],
+    required_header_values: [
+      { name: "content-type", expected_value: "application/json", },
+    ],
     body_kind: Some(ExpectTextBody),
     json_fields: [
       { path: "/user/id", expected_kind: JsonNumber, },
@@ -27,6 +30,8 @@ test "response contract accepts status headers body and JSON field kinds" {
       { path: "/user/active", expected_kind: JsonBoolean, },
       { path: "/items", expected_kind: JsonArray, },
     ],
+    optional_json_fields: [],
+    json_array_elements: [],
   }
   let report = response.validate_contract(contract)
   assert_true(report.is_valid())
@@ -61,6 +66,47 @@ test "response contract requires headers case insensitively" {
   assert_eq(report.violations.length(), 1)
   assert_eq(report.violations[0].kind, MissingHeaderViolation)
   assert_eq(report.violations[0].path, "header:x-trace")
+}
+
+///|
+test "response contract checks header values without exposing them" {
+  let contract : ResponseContract = {
+    ..ResponseContract::permissive(),
+    required_header_values: [
+      { name: "Content-Type", expected_value: "application/json", },
+      { name: "X-Token", expected_value: "expected-secret", },
+    ],
+  }
+  let report = contract_response(
+    200,
+    [
+      { name: "content-type", value: "text/plain", },
+      { name: "x-token", value: "actual-secret", },
+    ],
+    Empty,
+  ).validate_contract(contract)
+  assert_eq(report.violations.length(), 2)
+  assert_eq(report.violations[0].kind, HeaderValueViolation)
+  assert_eq(report.violations[0].path, "header:content-type")
+  assert_true(!report.summary().contains("expected-secret"))
+  assert_true(!report.summary().contains("actual-secret"))
+  assert_true(report.summary().contains("header-value"))
+}
+
+///|
+test "response contract reports a missing required header value safely" {
+  let contract : ResponseContract = {
+    ..ResponseContract::permissive(),
+    required_header_values: [
+      { name: "X-Token", expected_value: "expected-secret", },
+    ],
+  }
+  let report = contract_response(200, [], Empty).validate_contract(contract)
+  assert_eq(report.violations.length(), 1)
+  assert_eq(report.violations[0].kind, HeaderValueViolation)
+  assert_eq(report.violations[0].path, "header:x-token")
+  assert_eq(report.violations[0].actual, "missing")
+  assert_true(!report.summary().contains("expected-secret"))
 }
 
 ///|
@@ -145,6 +191,69 @@ test "response contract supports pointer array indexes and dot shorthand" {
 }
 
 ///|
+test "response contract permits absent optional fields but checks them when present" {
+  let contract : ResponseContract = {
+    ..ResponseContract::permissive(),
+    optional_json_fields: [
+      { path: "/next_page", expected_kind: JsonString, },
+      { path: "/debug", expected_kind: JsonBoolean, },
+    ],
+  }
+  let absent = contract_response(200, [], Text("{\"items\":[]}")).validate_contract(
+    contract,
+  )
+  assert_true(absent.is_valid())
+  let present = contract_response(
+    200,
+    [],
+    Text("{\"next_page\":\"cursor-2\",\"debug\":false}"),
+  ).validate_contract(contract)
+  assert_true(present.is_valid())
+  let wrong = contract_response(200, [], Text("{\"next_page\":17}")).validate_contract(
+    contract,
+  )
+  assert_eq(wrong.violations.length(), 1)
+  assert_eq(wrong.violations[0].kind, JsonTypeViolation)
+  assert_eq(wrong.violations[0].path, "/next_page")
+}
+
+///|
+test "response contract validates direct array element kinds" {
+  let contract : ResponseContract = {
+    ..ResponseContract::permissive(),
+    json_array_elements: [{ path: "/items", expected_kind: JsonObject, }],
+  }
+  let valid = contract_response(
+    200,
+    [],
+    Text("{\"items\":[{\"id\":1},{\"id\":2}]}"),
+  ).validate_contract(contract)
+  assert_true(valid.is_valid())
+  let invalid = contract_response(
+    200,
+    [],
+    Text("{\"items\":[{\"id\":1},\"bad\"]}"),
+  ).validate_contract(contract)
+  assert_eq(invalid.violations.length(), 1)
+  assert_eq(invalid.violations[0].kind, JsonTypeViolation)
+  assert_eq(invalid.violations[0].path, "/items/1")
+  assert_eq(invalid.violations[0].actual, "string")
+  let missing = contract_response(200, [], Text("{}")).validate_contract(
+    contract,
+  )
+  assert_eq(missing.violations.length(), 1)
+  assert_eq(missing.violations[0].kind, MissingJsonFieldViolation)
+  assert_eq(missing.violations[0].path, "/items")
+  let not_array = contract_response(200, [], Text("{\"items\":{\"id\":1}}")).validate_contract(
+    contract,
+  )
+  assert_eq(not_array.violations.length(), 1)
+  assert_eq(not_array.violations[0].kind, JsonTypeViolation)
+  assert_eq(not_array.violations[0].expected, "array")
+  assert_eq(not_array.violations[0].actual, "object")
+}
+
+///|
 test "response contract reports invalid rule paths as data" {
   let contract : ResponseContract = {
     ..ResponseContract::permissive(),
@@ -162,8 +271,11 @@ test "response contract emits violations in a stable review order" {
   let contract : ResponseContract = {
     allowed_statuses: [200],
     required_headers: ["content-type"],
+    required_header_values: [],
     body_kind: Some(ExpectEmptyBody),
     json_fields: [{ path: "/id", expected_kind: JsonNumber, }],
+    optional_json_fields: [],
+    json_array_elements: [],
   }
   let report = contract_response(500, [], Text("not-json")).validate_contract(
     contract,

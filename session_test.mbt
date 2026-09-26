@@ -89,6 +89,23 @@ test "session owns a cassette snapshot and returns a copy" {
 }
 
 ///|
+test "replay returns a response copy instead of exposing session state" {
+  let request = session_request("https://example.test/items")
+  let cassette : Cassette = {
+    format_version: CURRENT_FORMAT_VERSION,
+    interactions: [{ request, response: session_response(200), }],
+  }
+  let session = Session::with_defaults(cassette, Replay)
+  match session.replay(request) {
+    Ok(response) => {
+      response.headers.push({ name: "x-mutated", value: "outside", })
+      assert_eq(session.cassette().interactions[0].response.headers.length(), 0)
+    }
+    Err(_) => assert_true(false)
+  }
+}
+
+///|
 test "record calls transport and appends the interaction" {
   let request = session_request("https://example.test/items")
   let cassette = Cassette::empty()
