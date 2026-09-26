@@ -1,0 +1,12 @@
+import {
+  "chenqi-arch/moonbit-project" @moonvcr,
+  "moonbitlang/async",
+  "moonbitlang/async/fs",
+  "moonbitlang/async/http",
+  "moonbitlang/async/io",
+  "moonbitlang/core/debug",
+  "moonbitlang/core/encoding/base64",
+  "moonbitlang/core/encoding/utf8",
+}
+
+supported_targets = "native"

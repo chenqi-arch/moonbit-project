@@ -13,3 +13,7 @@ keywords = [ "http", "testing", "record-replay", "offline" ]
 preferred_target = "wasm"
 
 description = "MoonBit HTTP recording, replay, response contract validation, and offline testing library"
+
+import {
+  "moonbitlang/async@0.22.1",
+}
