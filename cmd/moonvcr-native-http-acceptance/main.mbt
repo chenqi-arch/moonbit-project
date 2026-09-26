@@ -92,15 +92,7 @@ async fn main {
   }
 
   let connection_failure = try {
-    let _ = @native.send_http_with_timeout(
-      {
-        method: "GET",
-        url: "http://127.0.0.1:1/unreachable",
-        headers: [],
-        body: @moonvcr.Empty,
-      },
-      500,
-    )
+    let _ = @native.send_http_with_timeout(request("GET", "/drop"), 500)
     "not rejected"
   } catch {
     error => error.summary()

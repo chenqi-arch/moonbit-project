@@ -69,6 +69,10 @@ async fn handle_request(
       })
     (@http.Get, "/status/503") =>
       send_text(conn, 503, "Service Unavailable", "synthetic outage")
+    // Deterministic transport failure: accept the connection, then close it
+    // before sending a response. This avoids relying on host firewall policy
+    // for an arbitrary unused port.
+    (@http.Get, "/drop") => conn.close()
     _ => send_text(conn, 404, "Not Found", "not found")
   }
 }
