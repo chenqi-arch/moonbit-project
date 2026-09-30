@@ -35,6 +35,8 @@ MoonVCR 不拦截系统流量。录制只会调用使用者显式选择的 trans
 
 ## 安装
 
+要求 MoonBit 编译器 `moonc >= 0.10.14`。先运行 `moon version --all`，注意核对其中的 `moonc` 行；工具链过旧时运行 `moon upgrade`。CI 在检查和 native 两个作业开始时都会执行最低版本门禁。
+
 安装当前稳定版：
 
 ```text
@@ -43,25 +45,52 @@ moon add chenqi-arch/moonbit-project@0.3.0
 
 Mooncakes 发布包、Git 标签和 GitHub 验收证据见 `FINAL_ACCEPTANCE.md`。
 
+最新赛事九项标准与证据逐条对应见 `COMPETITION_ACCEPTANCE.md`。PowerShell 下可运行 `./scripts/check-toolchain.ps1` 核对最低编译器版本，运行 `./scripts/verify-public-consumer.ps1` 自动复现下述快速开始；两个脚本也由 Ubuntu CI 执行。
+
 ## 核心快速开始
 
-```mbt
-import { "chenqi-arch/moonbit-project" @moonvcr, }
+下面是可以完整运行的独立消费者。先用 `moon new moonvcr-consumer` 创建项目，在该目录运行上面的 `moon add` 命令。将 `cmd/main/moon.pkg` 改为：
 
-let cassette = @moonvcr.Cassette::decode(cassette_text)
-let session = @moonvcr.Session::with_defaults(
-  cassette,
-  @moonvcr.StrictOffline,
-)
-let response = match session.replay(request) {
-  Ok(response) => response
-  Err(error) => abort(error.summary())
+```text
+import {
+  "chenqi-arch/moonbit-project" @moonvcr,
 }
-match session.assert_complete() {
-  Ok(_) => ()
-  Err(error) => abort(error.summary())
+
+pkgtype(kind: "executable")
+```
+
+将 `cmd/main/main.mbt` 改为：
+
+```mbt
+fn main {
+  let cassette_text = @moonvcr.Cassette::encode(@moonvcr.example_cassette())
+  let cassette = @moonvcr.Cassette::decode(cassette_text) catch {
+    _ => abort("cassette decode failed")
+  }
+  let request : @moonvcr.Request = {
+    method: "GET",
+    url: "https://api.example.test/v1/items?page=1",
+    headers: [{ name: "accept", value: "application/json", }],
+    body: @moonvcr.Empty,
+  }
+  let session = @moonvcr.Session::with_defaults(
+    cassette,
+    @moonvcr.StrictOffline,
+  )
+  let response = match session.replay(request) {
+    Ok(response) => response
+    Err(error) => abort(error.summary())
+  }
+  guard response.status == 200 else { abort("unexpected status") }
+  match session.assert_complete() {
+    Ok(_) => ()
+    Err(error) => abort(error.summary())
+  }
+  println("offline consumer passed status=200")
 }
 ```
+
+运行 `moon check`、`moon build`、`moon run cmd/main`，应输出 `offline consumer passed status=200`。该示例使用内存档案，合成域名不会被访问。
 
 `Session::replay` 没有 transport 参数，因此不具备联网回退路径。需要与既有同步 transport 兼容时可使用 `Session::send`；Replay/StrictOffline 分支仍不调用 transport。
 
@@ -107,7 +136,7 @@ guard report.is_valid() else { abort(report.summary()) }
 
 ## Native HTTP 与文件档案
 
-候选版的 `native` 包使用 `moonbitlang/async@0.22.1`：
+已发布的 `native` 包使用 `moonbitlang/async@0.22.1`；以下为异步函数内的 API 片段，完整入口见 `cmd/moonvcr-native-record` 与 `cmd/moonvcr-native-replay`：
 
 ```mbt
 let response = @native.send_http_with_timeout(request, 2_000)

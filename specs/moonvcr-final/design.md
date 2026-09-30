@@ -21,8 +21,8 @@ redact.mbt        请求、响应独立的安全副本
 diagnostics.mbt   仅描述字段的差异摘要
 contract.mbt      小型确定性响应契约
 adapter.mbt       内存脚本 transport 和适配接口
-io/               平台文件保存和加载（目标后端明确后实现）
-examples/         三个可复制业务场景和故障演示
+native/           Ubuntu native HTTP 适配与文件保存/加载
+cmd/              三个可运行业务场景、故障演示和真实 HTTP 集成入口
 ```
 
 核心公开错误只包含错误类别、索引、字段路径、长度或不可逆描述。匹配器内部可以使用结构化 key，但不得直接将 key 作为公开错误 payload。`Cassette`、`Request`、`Response` 和配置在创建会话时复制；公开 accessor 返回副本或只读摘要，避免调用方通过别名修改内部状态。

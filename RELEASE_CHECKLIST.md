@@ -15,6 +15,7 @@
 
 ## 发布前门禁
 
+- [x] 2026-09-30 本地升级到 `moonc 0.10.14` 并重新验收；CI 两个作业强制拒绝低于 0.10.14 的编译器，最新标准对应表见 `COMPETITION_ACCEPTANCE.md`；
 - [x] `moon fmt --check`、`moon check`、`moon build` 通过；
 - [x] wasm 测试 76/76 通过；
 - [x] Ubuntu native 测试 85/85 通过；
