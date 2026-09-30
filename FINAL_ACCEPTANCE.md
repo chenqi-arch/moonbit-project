@@ -4,6 +4,8 @@
 
 2026-09-30 最新赛事标准复核见 `COMPETITION_ACCEPTANCE.md`。本地工具链已升级为 `moonc v0.10.14+7d59c7ec9`，核心 76 项与全部成功/失败场景重新通过；最新 README 完整消费者从 Mooncakes 下载 0.3.0 后 check/build/run 通过。两个 CI 作业现强制检查 `moonc >= 0.10.14`。
 
+新增标准的远端证据：提交 `be3ba010d3ffb84e22fb0c254c741a13b74e0304`，[Actions run 36689633295](https://github.com/chenqi-arch/moonbit-project/actions/runs/36689633295) 的 check/native 全部成功。日志确认两者均为 `moonc v0.10.14+7d59c7ec9`，核心 76/76、native 85/85 通过；真实 HTTP 与新进程严格离线回放再次成功（2 条交互、网络调用 0），README 公网消费者再次成功。以下 0.3.0 发布清单与发布日期证据保留为历史记录，不将本次文档/CI 修改冒充重新发布的包。
+
 ## 当前证据
 
 | 范围 | 命令或证据 | 当前状态 |

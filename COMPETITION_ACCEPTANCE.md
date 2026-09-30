@@ -23,7 +23,9 @@
 - 新版工具链增加了既有测试隐式导入和 trait 方法提升的弃用提醒；这些提醒不会改变测试断言结果，但不宣称编译零警告。
 - 新版 README 独立消费者：从 Mooncakes 重新下载 0.3.0，check/build/run 全部通过，输出 `offline consumer passed status=200` 与 `README public consumer acceptance passed package=0.3.0`。
 - 版本门禁正反例：旧工具链 `0.10.12` 被明确拒绝，新工具链 `0.10.14` 通过；默认项目工具链已升级，旧工具链备份留在被 Git 忽略的 `.tools/`。
-- 公开可访问性：GitHub 无登录 API 查询返回 `private=false`、`visibility=public`；本次修改的 CI 成功后补入运行链接。
+- 公开可访问性：GitHub 无登录 API 查询返回 `private=false`、`visibility=public`。
+- 本次 CI：提交 `be3ba010d3ffb84e22fb0c254c741a13b74e0304` 的 [Actions run 36689633295](https://github.com/chenqi-arch/moonbit-project/actions/runs/36689633295) 中 check/native 全部成功；日志确认两个作业实际使用 `moonc v0.10.14+7d59c7ec9`，核心 76/76、native 85/85、容量 3/3，真实 HTTP 验收成功，新进程回放 `interactions=2 network_calls=0`，公网 README 消费者成功。
+- 本次仅更新工具链门禁、CI 与文档；0.3.0 产品源码与公开包保持一致，无需覆盖或重新发布已有版本。发布包原先的 64 项为历史发布清单，本次仓库预打包增加本文件与两个验收脚本，为 67 项，隐私检查通过。
 
 ## 支持边界
 
