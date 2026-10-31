@@ -10,8 +10,16 @@
 | 核心检查/构建/测试 | 本地 moonc 0.10.14，92/92 通过，包含 16 项新增安全测试 |
 | 独立对抗性复核 | 1,024 编码组合敏感值留存为 0；独立 Session 40 组合通过；字段注入负例编译失败 |
 | 候选归档消费者 | 从 0.3.1 ZIP 导入，README check/build/run、安全12拒绝+1024编码组合、私有字段负例通过；这是归档验证，不是公网发布 |
-| native 类型检查 | 本地通过；native 异步运行、文件测试及真实 HTTP E2E 等待 Ubuntu CI |
-| GitHub 与正式 Mooncakes 0.3.1 | 待完成发布门禁，尚不声明正式发布成功 |
+| native 类型检查/构建/测试 | 本地类型检查通过；Ubuntu CI 104/104通过，含核心92项及12项native，不能将92与104相加 |
+| 真实 HTTP 与跨进程回放 | Ubuntu CI：GET/POST/headers/JSON/bytes/errors/timeout/status/redirect通过；录制2条、秘密留存0，关服后新进程回放2条、网络调用0 |
+| GitHub 发布提交与标签 | `f7ba916138a72af2450b5c8ae8696f43d59ff36d`，`v0.3.1`；[CI run41163071443](https://github.com/chenqi-arch/moonbit-project/actions/runs/41163071443) check/native全绿 |
+| Mooncakes 正式发布 | 0.3.1服务端预演202 Accepted，正式发布200 OK，发布命令退出0 |
+| 正式公网包消费者 | 新目录从公网下载0.3.1，README check/build/run，12条失败关闭录制、1024编码录制和私有字段负例均通过；origin=public-registry |
+| 正式包一致性与隐私 | 发布前80个归档文件与干净发布提交工作树一致；公网下载的80文件逐一SHA256一致；含LICENSE，不含申报书、真实个人资料、工具链或Git元数据 |
+
+实际日志摘录：`Total tests: 92, passed: 92, failed: 0`；`Total tests: 104, passed: 104, failed: 0`；`real HTTP recording saved interactions=2 secrets=0`；`cross-process strict offline replay passed interactions=2 network_calls=0`；`security acceptance passed rejected=12 encoded_names=1024 retained_secrets=0`；`Consumer private Session field access rejected as expected`；`README consumer acceptance passed package=0.3.1 origin=public-registry`。
+
+发布在短临时路径完成：Windows旧工具链的发布验证在深目录下会触发生成文件缺失；带`--frozen`的预演也因验证解包目录尚无依赖而失败。修复路径是解出同一候选ZIP至短路径、逐文件校验一致，正常解析依赖后验证与发布，未跳过检查。发布后的文档/CI收尾提交不属于包源提交，不改写v0.3.1原指向。
 
 ## 0.3.0 历史执行记录（已知有安全漏洞）
 

@@ -32,7 +32,13 @@
 
 候选ZIP消费者输出 `security acceptance passed rejected=12 encoded_names=1024 retained_secrets=0`，私有字段负例按预期编译失败。Windows长路径曾触发编译器生成文件缺失，本次通过独立短构建目录解决，未将异常记为通过。
 
-GitHub本轮CI、native运行、发布SHA/tag、Mooncakes服务器结果与正式包复验：待实际完成后在本文件和FINAL_ACCEPTANCE.md补入。
+GitHub本轮CI：[run41163071443](https://github.com/chenqi-arch/moonbit-project/actions/runs/41163071443)，check/native全绿，实际moonc0.10.14；核心92/92、native104/104通过。真实HTTP录制2条，秘密留存0；关服后新进程离线回放2条，网络调用0。
+
+发布源码与标签：`f7ba916138a72af2450b5c8ae8696f43d59ff36d` / `v0.3.1`。候选80文件逐一核对后，Mooncakes预演返回202 Accepted，正式发布返回200 OK、退出0。正式包地址：https://mooncakes.io/docs/chenqi-arch/moonbit-project@0.3.1。
+
+正式公网消费者在新目录下载0.3.1，README check/build/run、安全12拒绝+1024编码和私有字段编译负例均通过；输出 `origin=public-registry`。重新下载包的80个文件SHA256逐一与发布源码一致。发布后的文档与CI提交不冒充包源SHA，旧tag与旧包均未改写。CI现默认持续从公网下载0.3.1执行相同安全断言。
+
+发布审核子代理另用隔离空缓存 `_build/public-audit-home-e89f7115` 和独立消费者 `_build/c-bed4e9d0/consumer` 重新验证。日志明确下载0.3.1与async0.22.1（没有复用主代理缓存），同样通过README、安全12拒绝/1024编码及私有字段负例，退出0。这属于独立公网复验，不仅是候选归档复验。
 
 ## 限制与历史数据
 

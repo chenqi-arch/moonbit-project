@@ -13,7 +13,7 @@ MoonVCR 不拦截系统流量。录制只会调用使用者显式选择的 trans
 
 ## 当前状态
 
-- 当前修复版本：`chenqi-arch/moonbit-project@0.3.1`，正式发布与公网复验状态见 `FINAL_ACCEPTANCE.md`；
+- 当前稳定修复版：[`chenqi-arch/moonbit-project@0.3.1`](https://mooncakes.io/docs/chenqi-arch/moonbit-project@0.3.1)，已正式发布并完成公网独立安全复验，详细证据见 `FINAL_ACCEPTANCE.md`；
 - `0.3.0` 及更早版本存在已确认的脱敏绕过，不应作为安全录制版本使用；旧 CI 未覆盖这些漏洞，不能代表安全合格；
 - `0.3.1` 修复非文本 Body 绕过、编码敏感名识别和片段留存，并加强会话封装、模式约束及错误输出；具体影响与升级行为见 `SECURITY.md`、`MIGRATION.md`。
 

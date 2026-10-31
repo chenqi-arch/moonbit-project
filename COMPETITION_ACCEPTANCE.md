@@ -7,14 +7,16 @@
 | 标准 | 实现与复核入口 |
 | --- | --- |
 | 1. MoonBit 为主要实现语言，moonc 不低于 0.10.14 | 产品实现与测试均为 `.mbt`；本地使用 `moonc v0.10.14+7d59c7ec9`。`scripts/check-toolchain.ps1` 在两个 CI 作业中拒绝低于 0.10.14 的编译器，比较的是 moonc 而非 moon 版本 |
-| 2. GitHub 公开可访问，提交记录清晰 | https://github.com/chenqi-arch/moonbit-project；普通开发与修复提交保留目的和测试线索，发布标签 `v0.3.0` 保留原指向，未重写历史 |
+| 2. GitHub 公开可访问，提交记录清晰 | https://github.com/chenqi-arch/moonbit-project；本轮无登录API仍确认public；普通修复提交，新增 `v0.3.1` 指向 `f7ba916`，旧 `v0.3.0` 原指向保留 |
 | 3. 源代码结构清晰，核心功能可完成 | 根包分别提供 codec、normalize、matcher、session、redact、diagnostics、contract；`native/` 提供真实 HTTP 与文件档案；`cmd/` 为完整示例。功能及边界见 README，测试映射见 RELIABILITY_ACCEPTANCE.md |
 | 4. README 说明目标、安装、使用与可复现示例 | README 包含完整消费者的 `moon.pkg` 和 `fn main`，以及安装、运行命令和预期输出；`scripts/verify-public-consumer.ps1` 直接提取 README 代码并从 Mooncakes 下载正式包进行 check/build/run |
 | 5. CI 覆盖检查、构建、测试 | `.github/workflows/ci.yml` 的 check/native 作业分别执行对应后端的 check、build、test，并执行版本门禁、场景和集成验收 |
 | 6. 至少一个可运行示例 | `moon run cmd/moonvcr-demo`；另有 pagination、order-contract、restricted-ci 三个业务场景与故障用例 |
-| 7. 测试覆盖核心功能路径 | 本轮核心 92 项本地通过（含16项新增安全测试），native 运行待本次 CI；独立1024编码/40录制组合和私有字段负例已复核，旧76/85不能替代这些安全断言 |
-| 8. 发布到 Mooncakes | 0.3.1 候选归档验证已通过；正式发布和公网包安全复验尚待完成。0.3.0 已发布但有已知漏洞，不计为本轮修复发布成功 |
+| 7. 测试覆盖核心功能路径 | 本轮核心92/92、Ubuntu native104/104通过（native含核心）；独立1024编码/40录制组合与私有字段负例已复核；真实录制、关服、跨进程回放2条网络调用0 |
+| 8. 发布到 Mooncakes | [0.3.1正式包](https://mooncakes.io/docs/chenqi-arch/moonbit-project@0.3.1)发布200 OK；全新公网安装后README与安全断言通过，80文件SHA256与发布源码一致。0.3.0保留已知漏洞说明 |
 | 9. OSI 认可的许可证与上游合规 | 根 LICENSE 为完整 [OSI 认可的 Apache License 2.0](https://opensource.org/license/apache-2.0)，manifest 同步声明 Apache-2.0；THIRD_PARTY_NOTICES.md 列明 core 与 async 来源/许可证，未移植其他 VCR 项目源码 |
+
+本轮发布证据：`v0.3.1` / `f7ba916138a72af2450b5c8ae8696f43d59ff36d` / [CI41163071443](https://github.com/chenqi-arch/moonbit-project/actions/runs/41163071443)。CI已从临时旧API基线切为默认下载0.3.1并执行完整公网安全验证。九项入口与具体断言均已核对；这不代表举办方已重新审核通过，仍需官方确认。
 
 ## 2026-09-30 历史复核（未覆盖后来发现的漏洞）
 

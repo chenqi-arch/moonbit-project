@@ -4,7 +4,7 @@
 
 ## Unreleased
 
-0.3.1 安全修复准备中，实际发布状态见 FINAL_ACCEPTANCE.md。
+暂无。0.3.1 已正式发布，实际发布证据见 FINAL_ACCEPTANCE.md。
 
 ## 0.3.1 - 2026-10-31
 

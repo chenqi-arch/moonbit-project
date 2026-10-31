@@ -84,7 +84,7 @@ jobs:
 
       - name: Reproduce README against public Mooncakes package
         shell: pwsh
-        run: ./scripts/verify-public-consumer.ps1 -Version 0.3.0 -BaselineOnly
+        run: ./scripts/verify-public-consumer.ps1
 
   native:
     runs-on: ubuntu-latest
