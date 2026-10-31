@@ -20,7 +20,7 @@
 
 ## 测试与独立复核
 
-- 原始审核测试：`moon test audit_regression_test.mbt`。
+- 原始审核测试：`moon test --target wasm audit_regression_test.mbt --serial`。
 - 路径与契约扩展：`audit_paths_test.mbt`；匹配/诊断/可选索引：`audit_matching_test.mbt`；独立组合复核固化为 `audit_consistency_test.mbt`。
 - native HTTP：`native/http_headers_test.mbt` 与 `cmd/moonvcr-native-http-acceptance`；loopback 服务提供双 Set-Cookie 和属性控制。
 - native 文件预算：`native/archive_limits_wbtest.mbt`，含真实同句柄替换/增长控制，不以睡眠或概率竞争代替验证。
@@ -31,7 +31,13 @@
 
 修复提交 `5bea80bc203375b728999b6f047ff834e71c32a5` 的 [CI41185113305](https://github.com/chenqi-arch/moonbit-project/actions/runs/41185113305) check/native全绿；实际moonc0.10.14，核心129/129、native154/154（包含核心）。真实HTTP验证输出包含 `duplicate-header-rejection two-set-cookie business-original redacted-cassette offline-cookie-replay`，真实录制2条秘密留存0、关服后新进程回放2条网络调用0。F3/F4已获得Ubuntu实际运行证据，不再仅依赖类型检查。
 
-本地候选归档消费者及CI候选消费者均输出新12条Pointer留存0及既有12拒绝/1024编码通过。候选ZIP87文件与干净提交工作树逐文件一致，含LICENSE、无申报书/真实联系方式/访问令牌。版本冻结、Mooncakes正式发布与公网复验尚待完成；当前仍为候选源码，不把旧0.3.1公网结果记作本轮安全证明。最终证据将记录在本文件及 `FINAL_ACCEPTANCE.md`。
+本地候选归档消费者及CI候选消费者均输出新12条Pointer留存0及既有12拒绝/1024编码通过。最终发布提交为 `a5b3b4634d77b360226e8f6350fe228cbbc86206`，tag `v0.3.2`，对应 [CI41185323935](https://github.com/chenqi-arch/moonbit-project/actions/runs/41185323935) check/native全绿（129/154，含相同native实测）。发布归档87文件与干净提交工作树逐文件一致，含LICENSE、无申报书/真实联系方式/访问令牌。
+
+Mooncakes预演服务端返回202 Accepted（旧CLI虽报exit -1，但明确写明dry-run成功且未产生变更，未伪称CLI零退出）；正式发布返回200 OK、退出0。正式包： https://mooncakes.io/docs/chenqi-arch/moonbit-project@0.3.2 。新消费者日志明确下载0.3.2，README、全部新旧安全断言和私有字段编译负例通过，`origin=public-registry`。
+
+发布审核子代理另用空MOON_HOME `_build/public-audit-032-c659a31a` 与消费者 `_build/c-946de674/consumer`，日志明确下载0.3.2与async0.22.1，相同断言退出0；下载包、ZIP、冻结工作树的87文件三方SHA256一致。不使用主代理缓存冒充全新下载。后续文档与CI收尾提交不冒充发布包源码，不移动旧tag。
+
+另在隔离归档副本中覆盖未经改写的审核原始测试文件，校验复制哈希一致后执行，10/10通过。对正式下载包运行审核原始public-proof脚本也退出0：12次录制错误0、留密0，错误重复query回放false，错误类型空白键契约通过false。脚本输出中固定的 `published_0_3_1` 标签为原审核文字，实际依赖manifest已核对为0.3.2。CI现默认从公网下载0.3.2执行完整断言，旧0.3.1仅保留历史影响说明。
 
 ## 行为与边界
 

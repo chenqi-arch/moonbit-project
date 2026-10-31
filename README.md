@@ -13,7 +13,7 @@ MoonVCR 不拦截系统流量。录制只会调用使用者显式选择的 trans
 
 ## 当前状态
 
-- 当前源码修复版本：`0.3.2`；发布状态与对应 SHA/CI 证据见 `FINAL_ACCEPTANCE.md`；
+- 当前稳定修复版：[`chenqi-arch/moonbit-project@0.3.2`](https://mooncakes.io/docs/chenqi-arch/moonbit-project@0.3.2)，已正式发布并由空缓存独立消费者复验；对应 SHA/CI 证据见 `FINAL_ACCEPTANCE.md`；
 - `0.3.1` 及更早版本存在已确认的脱敏绕过或错误匹配，不能依据旧 CI 全绿认定安全；请升级并审阅重录旧档案；
 - `0.3.2` 对独立审核发现的七类问题补充修复，包括精确 JSON 路径、重复参数顺序、native 头信息、有界文件读取和诊断一致性；逐项说明见 `AUDIT_REMEDIATION_0.3.2.md`，兼容行为见 `MIGRATION.md`。
 
@@ -37,7 +37,7 @@ MoonVCR 不拦截系统流量。录制只会调用使用者显式选择的 trans
 
 要求 MoonBit 编译器 `moonc >= 0.10.14`。先运行 `moon version --all`，注意核对其中的 `moonc` 行；工具链过旧时运行 `moon upgrade`。CI 在检查和 native 两个作业开始时都会执行最低版本门禁。
 
-安装 0.3.2（正式发布状态以 `FINAL_ACCEPTANCE.md` 为准）：
+安装当前稳定版：
 
 ```text
 moon add chenqi-arch/moonbit-project@0.3.2

@@ -1,8 +1,24 @@
 # MoonVCR 终审验收矩阵
 
-## 0.3.2 独立审核整改（2026-10-31，候选待发布）
+## 0.3.2 独立审核整改与正式发布（2026-10-31）
 
-独立审核又发现七类问题，其中新增10项测试有8项失败；0.3.1的旧测试绿色不能证明本轮缺陷不存在。本轮整改和明确的逐项验收标准见 `AUDIT_REMEDIATION_0.3.2.md`。修复提交5bea80b的 [CI41185113305](https://github.com/chenqi-arch/moonbit-project/actions/runs/41185113305) check/native全绿：核心129/129、native154/154，含原始审核10/10、双Cookie与重复头、同句柄文件预算和新进程零网络回放。候选ZIP87文件消费者和隐私核验通过。当前在完善发布材料，冻结SHA与正式发布/公网复验待完成，不把候选结果当作正式发布。
+独立审核发现七类问题，新增10项测试在0.3.1有8项失败；不能用旧绿色CI证明安全。整改与通过标准见 `AUDIT_REMEDIATION_0.3.2.md`。原始断言保持，未经改写的审核测试文件在隔离副本重跑10/10；原始公网最小反例脚本对0.3.2也退出0。
+
+| 范围 | 实际结果与证据 |
+| --- | --- |
+| 发布提交与标签 | `a5b3b4634d77b360226e8f6350fe228cbbc86206` / `v0.3.2`，普通追加提交，旧tag未改写 |
+| 冻结提交CI | [run41185323935](https://github.com/chenqi-arch/moonbit-project/actions/runs/41185323935) check/native全绿，两个作业moonc均为0.10.14；此前修复提交5bea80b的CI41185113305也通过 |
+| 核心/native测试 | 核心129/129，Ubuntu native154/154（包含核心129，不相加）；原审核10项、扩展路径/契约、3600组诊断/回放对照、native 3项头部与10项预算测试 |
+| 真实HTTP与文件 | 双Set-Cookie业务原值/公开属性保留，录制副本两条脱敏、离线回放；重复头网络前拒绝；同句柄增长/替换及无限流/短读预算测试通过 |
+| 业务与跨进程 | 三成功场景零退出、三故障场景非零；真实HTTP录制2条秘密留存0，关服后新进程严格离线回放2条、网络调用0 |
+| 候选包消费者 | README check/build/run；既有12拒绝/1024编码、新12条空白Pointer、顺序/诊断/索引/重叠断言及私有字段负例均通过 |
+| Mooncakes正式发布 | [0.3.2](https://mooncakes.io/docs/chenqi-arch/moonbit-project@0.3.2)；预演服务端202 Accepted，正式发布200 OK、退出0 |
+| 正式公网消费 | 主代理新目录明确下载0.3.2；子代理独立空MOON_HOME亦明确下载0.3.2和async0.22.1；README与全部新旧安全断言、私有字段负例均通过 |
+| 文件一致性与隐私 | ZIP、下载包、干净冻结工作树87文件SHA256三方一致；含LICENSE，排除申报书/真实联系方式/访问令牌/本地工具和Git元数据 |
+
+关键输出：`Total tests: 129, passed: 129, failed: 0`；`Total tests: 154, passed: 154, failed: 0`；`audit acceptance passed pointer_cases=12 retained_secrets=0 duplicate_order=preserved diagnosis=consistent invalid_indices=rejected overlapping_rules=stable`；`README consumer acceptance passed package=0.3.2 origin=public-registry`。独立空缓存为 `_build/public-audit-032-c659a31a`，消费者 `_build/c-946de674/consumer`。
+
+0.3.2发布完成后，CI公网步骤已从明确标注的旧API基线切换为默认读取manifest的0.3.2，执行完整新旧安全断言。发布后的文档/CI收尾提交不属于Mooncakes包源提交，tag仍指向上述冻结SHA。测试覆盖已列明的路径与平台，不代表所有输入无漏洞或主办方已重新批准。
 
 ## 0.3.1 历史安全修复（未覆盖本轮新增缺陷）
 

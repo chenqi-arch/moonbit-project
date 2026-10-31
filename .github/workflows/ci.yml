@@ -82,11 +82,9 @@ jobs:
         shell: pwsh
         run: ./scripts/verify-public-consumer.ps1 -ArchivePath ./_build/publish/chenqi-arch-moonbit-project-0.3.2.zip
 
-      # 0.3.2 must pass candidate/native gates before it can be published.
-      # This temporary old API check is explicitly NOT a security proof.
-      - name: Reproduce README against previously published API baseline
+      - name: Reproduce README and security checks against public Mooncakes package
         shell: pwsh
-        run: ./scripts/verify-public-consumer.ps1 -Version 0.3.1 -BaselineOnly
+        run: ./scripts/verify-public-consumer.ps1
 
   native:
     runs-on: ubuntu-latest
