@@ -29,7 +29,9 @@
 
 ## 当前执行状态
 
-本地核心与原始10项已通过；native仅完成Windows类型检查。完整Ubuntu运行、版本冻结、Mooncakes正式发布与公网复验尚待执行；只有实际取得对应日志后才更新为完成。当前0.3.2为候选源码，不把旧0.3.1公网结果记作本轮安全证明。最终证据将记录在本文件及 `FINAL_ACCEPTANCE.md`。
+修复提交 `5bea80bc203375b728999b6f047ff834e71c32a5` 的 [CI41185113305](https://github.com/chenqi-arch/moonbit-project/actions/runs/41185113305) check/native全绿；实际moonc0.10.14，核心129/129、native154/154（包含核心）。真实HTTP验证输出包含 `duplicate-header-rejection two-set-cookie business-original redacted-cassette offline-cookie-replay`，真实录制2条秘密留存0、关服后新进程回放2条网络调用0。F3/F4已获得Ubuntu实际运行证据，不再仅依赖类型检查。
+
+本地候选归档消费者及CI候选消费者均输出新12条Pointer留存0及既有12拒绝/1024编码通过。候选ZIP87文件与干净提交工作树逐文件一致，含LICENSE、无申报书/真实联系方式/访问令牌。版本冻结、Mooncakes正式发布与公网复验尚待完成；当前仍为候选源码，不把旧0.3.1公网结果记作本轮安全证明。最终证据将记录在本文件及 `FINAL_ACCEPTANCE.md`。
 
 ## 行为与边界
 

@@ -37,7 +37,7 @@ MoonVCR 不拦截系统流量。录制只会调用使用者显式选择的 trans
 
 要求 MoonBit 编译器 `moonc >= 0.10.14`。先运行 `moon version --all`，注意核对其中的 `moonc` 行；工具链过旧时运行 `moon upgrade`。CI 在检查和 native 两个作业开始时都会执行最低版本门禁。
 
-安装当前稳定版：
+安装 0.3.2（正式发布状态以 `FINAL_ACCEPTANCE.md` 为准）：
 
 ```text
 moon add chenqi-arch/moonbit-project@0.3.2
