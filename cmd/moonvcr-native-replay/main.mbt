@@ -1,7 +1,9 @@
 ///|
-fn redaction_policy() -> @moonvcr.RedactionPolicy {
+fn redaction_policy(request_json : Bool) -> @moonvcr.RedactionPolicy {
   let request = @moonvcr.RedactionConfig::default()
-  request.json_paths.push("/request_token")
+  if request_json {
+    request.json_paths.push("/request_token")
+  }
   let response = @moonvcr.RedactionConfig::default()
   response.json_paths.push("/response_token")
   { request, response, }
@@ -37,13 +39,30 @@ fn order_request() -> @moonvcr.Request {
 async fn main {
   let path = "_build/moonvcr-real-http.json"
   let cassette = @native.load_cassette_default(path)
-  let session = @moonvcr.Session::new_with_redaction_policy(
-    cassette,
+  guard cassette.interactions.length() == 2 else {
+    abort("cassette interaction count mismatch")
+  }
+  let get_cassette : @moonvcr.Cassette = {
+    format_version: cassette.format_version,
+    interactions: [cassette.interactions[0]],
+  }
+  let order_cassette : @moonvcr.Cassette = {
+    format_version: cassette.format_version,
+    interactions: [cassette.interactions[1]],
+  }
+  let get_session = @moonvcr.Session::new_with_redaction_policy(
+    get_cassette,
     @moonvcr.StrictOffline,
     @moonvcr.MatchConfig::default(),
-    redaction_policy(),
+    redaction_policy(false),
   )
-  let get_response = match session.replay(get_request()) {
+  let session = @moonvcr.Session::new_with_redaction_policy(
+    order_cassette,
+    @moonvcr.StrictOffline,
+    @moonvcr.MatchConfig::default(),
+    redaction_policy(true),
+  )
+  let get_response = match get_session.replay(get_request()) {
     Ok(response) => response
     Err(_) => abort("offline GET replay failed")
   }
@@ -75,6 +94,10 @@ async fn main {
   match session.assert_complete() {
     Ok(_) => ()
     Err(_) => abort("offline replay did not consume the complete cassette")
+  }
+  match get_session.assert_complete() {
+    Ok(_) => ()
+    Err(_) => abort("offline GET cassette incomplete")
   }
   let encoded = cassette.encode()
   guard !encoded.contains("secret") else {

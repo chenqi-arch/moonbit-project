@@ -131,7 +131,7 @@ fn length_prefix(value : String) -> String {
 /// Describe a request without copying URL, header, query, or body values.
 /// This is suitable for public candidate errors.
 pub fn request_safe_summary(request : Request) -> String {
-  let method = request.method.trim().to_owned().to_upper()
+  let method = safe_method_description(request.method)
   let body = match request.body {
     Empty => "empty"
     Text(value) => "text(len=" + value.length().to_string() + ")"
@@ -145,6 +145,34 @@ pub fn request_safe_summary(request : Request) -> String {
   request.headers.length().to_string() +
   ",body=" +
   body
+}
+
+///|
+fn safe_method_description(method : String) -> String {
+  let normalized = method.trim().to_owned().to_upper()
+  match normalized {
+    "GET"
+    | "HEAD"
+    | "POST"
+    | "PUT"
+    | "DELETE"
+    | "CONNECT"
+    | "OPTIONS"
+    | "TRACE"
+    | "PATCH" => normalized
+    _ => "<method len=" + normalized.length().to_string() + ">"
+  }
+}
+
+///|
+fn safe_name_description(kind : String, name : String) -> String {
+  "<" +
+  kind +
+  " len=" +
+  name.length().to_string() +
+  ",fp=" +
+  safe_fingerprint(name) +
+  ">"
 }
 
 ///|

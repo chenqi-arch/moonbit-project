@@ -108,6 +108,9 @@ pub async fn record_http(
   request : @moonvcr.Request,
   timeout_millis? : Int = DEFAULT_HTTP_TIMEOUT_MILLIS,
 ) -> Result[@moonvcr.Response, @moonvcr.SessionError] {
+  if session.mode() != @moonvcr.Record {
+    return session.replay(request)
+  }
   let response = send_http_with_timeout(request, timeout_millis) catch {
     error =>
       return Err(

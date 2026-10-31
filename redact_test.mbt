@@ -19,7 +19,7 @@ test "redacts default headers and query values" {
     Ok(safe) => {
       assert_eq(
         safe.url,
-        "https://example.test/items?token=[REDACTED]&safe=yes#fragment",
+        "https://example.test/items?token=[REDACTED]&safe=yes",
       )
       assert_eq(safe.headers[0].value, REDACTION_MARKER)
       assert_eq(safe.headers[1].value, "trace-1")

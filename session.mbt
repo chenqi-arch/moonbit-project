@@ -10,7 +10,12 @@ pub(all) enum SessionMode {
 /// A transport adapter supplied by the host application.
 pub(all) enum TransportError {
   Failed(String)
-} derive(Eq, @debug.Debug)
+} derive(Eq)
+
+///|
+pub impl @debug.Debug for TransportError with fn to_repr(_self) {
+  @debug.Repr::Repr("transport failed")
+}
 
 ///|
 /// Errors returned by the record/replay session.
@@ -19,6 +24,7 @@ pub(all) enum SessionError {
   TransportFailed(TransportError)
   RedactionFailed(RedactionError)
   IncompleteReplay(Int)
+  InvalidMode
 } derive(Eq, @debug.Debug)
 
 ///|
@@ -31,18 +37,31 @@ pub fn SessionError::summary(self : SessionError) -> String {
     RedactionFailed(_) => "redaction failed"
     IncompleteReplay(remaining) =>
       "replay incomplete: " + remaining.to_string() + " interactions remain"
+    InvalidMode => "operation requires Record mode"
   }
 }
 
 ///|
 /// Stateful record/replay session. Replay never invokes its transport.
-pub(all) struct Session {
-  mut cassette : Cassette
-  config : MatchConfig
-  redaction : RedactionPolicy
-  mode : SessionMode
-  mut consumed : Array[Bool]
-} derive(@debug.Debug)
+pub struct Session {
+  priv cassette : Cassette
+  priv config : MatchConfig
+  priv redaction : RedactionPolicy
+  priv mode : SessionMode
+  priv consumed : Array[Bool]
+}
+
+///|
+pub impl @debug.Debug for Session with fn to_repr(self) {
+  @debug.Repr::Repr(
+    "Session(remaining=" + self.remaining_interactions().to_string() + ")",
+  )
+}
+
+///|
+pub fn Session::mode(self : Session) -> SessionMode {
+  self.mode
+}
 
 ///|
 /// Create a session with an explicit matching policy.
@@ -113,7 +132,8 @@ pub fn Session::send(
     Record =>
       match transport(request) {
         Ok(response) => self.record_response(request, response)
-        Err(error) => Err(TransportFailed(error))
+        Err(_) =>
+          Err(TransportFailed(TransportError::Failed("transport failed")))
       }
     Replay | StrictOffline => self.replay(request)
   }
@@ -127,10 +147,14 @@ pub fn Session::record_response(
   request : Request,
   response : Response,
 ) -> Result[Response, SessionError] {
+  if self.mode != Record {
+    return Err(InvalidMode)
+  }
   let interaction : Interaction = { request, response, }
   match redact_interaction_with_policy(interaction, self.redaction) {
     Ok(safe_interaction) => {
       self.cassette.interactions.push(safe_interaction)
+      self.consumed.push(false)
       Ok(response)
     }
     Err(error) => Err(RedactionFailed(error))

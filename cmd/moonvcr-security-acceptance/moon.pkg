@@ -1,0 +1,6 @@
+import {
+  "chenqi-arch/moonbit-project" @moonvcr,
+  "moonbitlang/core/debug",
+}
+
+pkgtype(kind: "executable")

@@ -1,7 +1,9 @@
 ///|
-fn redaction_policy() -> @moonvcr.RedactionPolicy {
+fn redaction_policy(request_json : Bool) -> @moonvcr.RedactionPolicy {
   let request = @moonvcr.RedactionConfig::default()
-  request.json_paths.push("/request_token")
+  if request_json {
+    request.json_paths.push("/request_token")
+  }
   let response = @moonvcr.RedactionConfig::default()
   response.json_paths.push("/response_token")
   { request, response, }
@@ -35,13 +37,19 @@ fn order_request() -> @moonvcr.Request {
 
 ///|
 async fn main {
+  let get_session = @moonvcr.Session::new_with_redaction_policy(
+    @moonvcr.Cassette::empty(),
+    @moonvcr.Record,
+    @moonvcr.MatchConfig::default(),
+    redaction_policy(false),
+  )
   let session = @moonvcr.Session::new_with_redaction_policy(
     @moonvcr.Cassette::empty(),
     @moonvcr.Record,
     @moonvcr.MatchConfig::default(),
-    redaction_policy(),
+    redaction_policy(true),
   )
-  match @native.record_http(session, get_request(), timeout_millis=2_000) {
+  match @native.record_http(get_session, get_request(), timeout_millis=2_000) {
     Ok(response) if response.status == 200 => ()
     _ => abort("real GET recording failed")
   }
@@ -49,7 +57,16 @@ async fn main {
     Ok(response) if response.status == 201 => ()
     _ => abort("real POST recording failed")
   }
-  let cassette = session.cassette()
+  let get_cassette = get_session.cassette()
+  let order_cassette = session.cassette()
+  guard get_cassette.interactions.length() == 1 &&
+    order_cassette.interactions.length() == 1 else {
+    abort("per-operation recording count mismatch")
+  }
+  let cassette : @moonvcr.Cassette = {
+    format_version: get_cassette.format_version,
+    interactions: [get_cassette.interactions[0], order_cassette.interactions[0]],
+  }
   guard cassette.interactions.length() == 2 else {
     abort("recorded interaction count mismatch")
   }

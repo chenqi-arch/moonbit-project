@@ -126,7 +126,7 @@ test "transport errors are typed" {
   match session.send(session_request("https://example.test"), transport) {
     Ok(_) => assert_true(false)
     Err(TransportFailed(TransportError::Failed(message))) =>
-      assert_eq(message, "timeout")
+      assert_eq(message, "transport failed")
     Err(_) => assert_true(false)
   }
 }
@@ -144,16 +144,13 @@ test "record stores a redacted interaction but returns the real response" {
     headers: [{ name: "Set-Cookie", value: "session=real-cookie", }],
     body: Text("{\u{22}token\u{22}:\u{22}real-token\u{22},\u{22}ok\u{22}:true}"),
   }
-  let session = Session::new_with_redaction(
+  let response_rules = RedactionConfig::default()
+  response_rules.json_paths.push("/token")
+  let session = Session::new_with_redaction_policy(
     Cassette::empty(),
     Record,
     MatchConfig::default(),
-    {
-      headers: [],
-      query_parameters: [],
-      json_paths: ["/token"],
-      optional_json_paths: [],
-    },
+    { request: RedactionConfig::default(), response: response_rules, },
   )
   let transport = (_ : Request) => Ok(real_response)
   match session.send(request, transport) {
@@ -239,7 +236,12 @@ test "redaction failure does not append an interaction" {
       optional_json_paths: [],
     },
   )
-  let request = session_request("https://example.test")
+  let request : Request = {
+    method: "POST",
+    url: "https://example.test",
+    headers: [],
+    body: Text("{}"),
+  }
   let response : Response = { status: 200, headers: [], body: Text("{}"), }
   let transport = (_ : Request) => Ok(response)
   match session.send(request, transport) {

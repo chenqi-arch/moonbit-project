@@ -65,6 +65,7 @@ pub fn MismatchReport::summary(self : MismatchReport) -> String {
 ///|
 priv struct DiagnosticView {
   method : String
+  match_method : String
   base_url : String
   query : String
   headers : String
@@ -101,7 +102,7 @@ fn diagnostic_query(url : String, config : RedactionConfig) -> String {
         }
         match raw.split_once("=") {
           Some((key, value)) => {
-            let name = key.to_owned().trim().to_owned().to_lower()
+            let name = safe_name_description("query-name", key.to_owned())
             if sensitive_query_parameter(key.to_owned(), config) {
               parts.push(name + "=<redacted>")
             } else {
@@ -116,7 +117,7 @@ fn diagnostic_query(url : String, config : RedactionConfig) -> String {
             }
           }
           None => {
-            let name = raw.trim().to_owned().to_lower()
+            let name = safe_name_description("query-name", raw)
             if sensitive_query_parameter(raw + "", config) {
               parts.push(name + "=<redacted>")
             } else {
@@ -138,13 +139,11 @@ fn diagnostic_header_parts(
   redaction : RedactionConfig,
 ) -> (String, String) {
   let summary_parts : Array[String] = []
-  let match_parts : Array[String] = []
   let safe_headers = redact_headers(headers, redaction)
   for header in safe_headers {
     if should_include_header(header.name + "", config) {
       let name = normalized_header_name(header.name + "")
       let normalized_value = normalized_header_value(header.value + "")
-      match_parts.push(name + "=" + normalized_value)
       let value = if sensitive_header(header.name + "", redaction) {
         "<redacted>"
       } else {
@@ -154,12 +153,13 @@ fn diagnostic_header_parts(
         safe_fingerprint(normalized_value + "") +
         ">"
       }
-      summary_parts.push(name + "=" + value)
+      summary_parts.push(
+        safe_name_description("header-name", name) + "=" + value,
+      )
     }
   }
   summary_parts.sort_by((left, right) => left.compare(right))
-  match_parts.sort_by((left, right) => left.compare(right))
-  (summary_parts.join("&"), match_parts.join("&"))
+  (summary_parts.join("&"), normalize_headers(safe_headers, config))
 }
 
 ///|
@@ -216,7 +216,8 @@ fn diagnostic_view(
     body, config, redaction,
   )
   {
-    method: method.trim().to_owned().to_upper(),
+    method: safe_method_description(method),
+    match_method: method.trim().to_owned().to_upper(),
     base_url: "<url-base len=" +
     match_base_url.length().to_string() +
     ",fp=" +
@@ -279,7 +280,7 @@ pub fn diagnose_mismatch_with_redaction(
       config,
       redaction,
     )
-    let method_matches = actual.method == expected.method
+    let method_matches = actual.match_method == expected.match_method
     let base_url_matches = actual.match_base_url == expected.match_base_url
     let query_matches = actual.match_query == expected.match_query
     let headers_match = actual.match_headers == expected.match_headers

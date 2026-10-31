@@ -71,16 +71,19 @@ fn sensitive_header(name : String, config : RedactionConfig) -> Bool {
 
 ///|
 fn sensitive_query_parameter(name : String, config : RedactionConfig) -> Bool {
-  let normalized = percent_decode_query_name(name.trim().to_owned().to_lower())
+  let normalized = percent_decode_query_name(name, plus_as_space=true)
+    .trim()
+    .to_owned()
+    .to_lower()
   for candidate in RedactionConfig::default().query_parameters {
     if normalized ==
-      percent_decode_query_name(candidate.trim().to_owned().to_lower()) {
+      percent_decode_query_name(candidate).trim().to_owned().to_lower() {
       return true
     }
   }
   for candidate in config.query_parameters {
     if normalized ==
-      percent_decode_query_name(candidate.trim().to_owned().to_lower()) {
+      percent_decode_query_name(candidate).trim().to_owned().to_lower() {
       return true
     }
   }
@@ -103,28 +106,41 @@ fn hex_digit(value : Int) -> Int? {
 
 ///|
 /// Decode percent escapes in a query parameter name for sensitive-name
-/// matching. Invalid escapes are retained and therefore cannot hide a name.
-fn percent_decode_query_name(name : String) -> String {
-  let output = StringBuilder(size_hint=name.length())
+/// matching, exactly once. Literal '+' is form-space only in the URL, not in
+/// caller-defined names. Invalid escapes/UTF-8 retain their original spelling.
+fn percent_decode_query_name(
+  name : String,
+  plus_as_space? : Bool = false,
+) -> String {
+  let input = @utf8.encode(name)
+  let output : Array[Byte] = []
   let mut index = 0
-  while index < name.length() {
-    let code = name.unsafe_get(index)
-    if code.to_int() == '%'.to_int() && index + 2 < name.length() {
-      let first = hex_digit(name.unsafe_get(index + 1).to_int())
-      let second = hex_digit(name.unsafe_get(index + 2).to_int())
+  while index < input.length() {
+    let code = input[index].to_int()
+    if code == '%'.to_int() && index + 2 < input.length() {
+      let first = hex_digit(input[index + 1].to_int())
+      let second = hex_digit(input[index + 2].to_int())
       match (first, second) {
         (Some(left), Some(right)) => {
-          output.write_char((left * 16 + right).unsafe_to_char())
+          output.push((left * 16 + right).to_byte())
           index += 3
           continue
         }
         _ => ()
       }
     }
-    output.write_char(code.unsafe_to_char())
+    output.push(
+      if plus_as_space && code == '+'.to_int() {
+        (32).to_byte()
+      } else {
+        input[index]
+      },
+    )
     index += 1
   }
-  output.to_string()
+  @utf8.decode(Bytes::from_array(output)) catch {
+    _ => name
+  }
 }
 
 ///|
@@ -134,22 +150,23 @@ fn redact_url_userinfo(url : String) -> String {
   match url.split_once("://") {
     None => url
     Some((scheme, rest)) => {
-      let (authority, suffix) = match rest.split_once("/") {
-        Some((host, path)) => (host.to_owned(), "/" + path.to_owned())
-        None =>
-          match rest.split_once("?") {
-            Some((host, query)) => (host.to_owned(), "?" + query.to_owned())
-            None => (rest.to_owned(), "")
-          }
+      let (location, query) = match rest.split_once("?") {
+        Some((before, query)) => (before.to_owned(), "?" + query.to_owned())
+        None => (rest.to_owned(), "")
       }
-      match authority.split_once("@") {
+      let (authority, path) = match location.split_once("/") {
+        Some((host, path)) => (host.to_owned(), "/" + path.to_owned())
+        None => (location, "")
+      }
+      match authority.rev_split_once("@") {
         Some((_, host)) =>
           scheme.to_owned() +
           "://" +
           REDACTION_MARKER +
           "@" +
           host.to_owned() +
-          suffix
+          path +
+          query
         None => url
       }
     }
@@ -173,17 +190,13 @@ fn redact_headers(
 ///|
 /// Replace sensitive query values while preserving the URL's other spelling.
 fn redact_url(url : String, config : RedactionConfig) -> String {
-  let (without_fragment, fragment) = match url.split_once("#") {
-    Some((before, after)) => (before.to_owned(), Some(after.to_owned()))
-    None => (url, None)
+  let without_fragment = match url.split_once("#") {
+    Some((before, _)) => before.to_owned()
+    None => url
   }
   let without_userinfo = redact_url_userinfo(without_fragment)
   match without_userinfo.split_once("?") {
-    None =>
-      match fragment {
-        Some(value) => without_userinfo + "#" + value
-        None => without_userinfo
-      }
+    None => without_userinfo
     Some((base, raw_query)) => {
       let parts : Array[String] = []
       let mut changed = false
@@ -209,10 +222,6 @@ fn redact_url(url : String, config : RedactionConfig) -> String {
         }
       }
       let rebuilt = base.to_owned() + "?" + parts.join("&")
-      let rebuilt = match fragment {
-        Some(value) => rebuilt + "#" + value
-        None => rebuilt
-      }
       if !changed {
         return rebuilt
       }
@@ -390,14 +399,23 @@ fn redact_body(
   body : Body,
   config : RedactionConfig,
 ) -> Result[Body, RedactionError] {
+  if config.json_paths.is_empty() && config.optional_json_paths.is_empty() {
+    return Ok(body)
+  }
+  // Validate configuration even when the representation cannot contain JSON.
+  for path in config.json_paths + config.optional_json_paths {
+    match parse_redaction_path(path) {
+      Err(error) => return Err(error)
+      Ok(_) => ()
+    }
+  }
   match body {
-    Text(text) if config.json_paths.length() > 0 ||
-      config.optional_json_paths.length() > 0 =>
+    Text(text) =>
       match redact_json_text(text, config) {
         Ok(value) => Ok(Text(value))
         Err(error) => Err(error)
       }
-    other => Ok(other)
+    Empty | Base64(_) => Err(InvalidJson("JSON redaction requires a Text body"))
   }
 }
 

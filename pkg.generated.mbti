@@ -27,11 +27,15 @@ pub fn normalize_url(String) -> String
 
 pub fn redact_interaction(Interaction, RedactionConfig) -> Result[Interaction, RedactionError]
 
+pub fn redact_interaction_with_policy(Interaction, RedactionPolicy) -> Result[Interaction, RedactionError]
+
 pub fn redact_request(Request, RedactionConfig) -> Result[Request, RedactionError]
 
 pub fn redact_response(Response, RedactionConfig) -> Result[Response, RedactionError]
 
 pub fn request_match_key(Request, MatchConfig) -> String
+
+pub fn request_safe_summary(Request) -> String
 
 // Errors
 pub(all) suberror CassetteError {
@@ -83,6 +87,7 @@ pub(all) struct ContractViolation {
 pub(all) enum ContractViolationKind {
   StatusViolation
   MissingHeaderViolation
+  HeaderValueViolation
   BodyKindViolation
   InvalidJsonViolation
   InvalidJsonPathViolation
@@ -96,10 +101,20 @@ pub(all) struct Header {
   value : String
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
 
+pub(all) struct HeaderValueContract {
+  name : String
+  expected_value : String
+} derive(Eq, @debug.Debug)
+
 pub(all) struct Interaction {
   request : Request
   response : Response
 } derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) struct JsonArrayElementContract {
+  path : String
+  expected_kind : JsonValueKind
+} derive(Eq, @debug.Debug)
 
 pub(all) struct JsonFieldContract {
   path : String
@@ -161,6 +176,7 @@ pub(all) struct RedactionConfig {
   headers : Array[String]
   query_parameters : Array[String]
   json_paths : Array[String]
+  optional_json_paths : Array[String]
 } derive(Eq, @debug.Debug)
 pub fn RedactionConfig::default() -> Self
 
@@ -169,6 +185,13 @@ pub(all) enum RedactionError {
   InvalidPath(String)
   MissingPath(String)
 } derive(Eq, @debug.Debug)
+
+pub(all) struct RedactionPolicy {
+  request : RedactionConfig
+  response : RedactionConfig
+} derive(Eq, @debug.Debug)
+pub fn RedactionPolicy::default() -> Self
+pub fn RedactionPolicy::symmetric(RedactionConfig) -> Self
 
 pub(all) struct Request {
   method : String
@@ -187,8 +210,11 @@ pub fn Response::validate_contract(Self, ResponseContract) -> ContractReport
 pub(all) struct ResponseContract {
   allowed_statuses : Array[Int]
   required_headers : Array[String]
+  required_header_values : Array[HeaderValueContract]
   body_kind : ContractBodyKind?
   json_fields : Array[JsonFieldContract]
+  optional_json_fields : Array[JsonFieldContract]
+  json_array_elements : Array[JsonArrayElementContract]
 } derive(Eq, @debug.Debug)
 pub fn ResponseContract::permissive() -> Self
 
@@ -200,25 +226,31 @@ pub fn ScriptedTransport::new(Array[Response]) -> Self
 pub fn ScriptedTransport::remaining(Self) -> Int
 pub fn ScriptedTransport::send(Self, Request) -> Result[Response, TransportError]
 
-pub(all) struct Session {
-  mut cassette : Cassette
-  config : MatchConfig
-  redaction : RedactionConfig
-  mode : SessionMode
-  mut consumed : Array[Bool]
-} derive(@debug.Debug)
+pub struct Session {
+  // private fields
+}
+pub fn Session::assert_complete(Self) -> Result[Unit, SessionError]
 pub fn Session::cassette(Self) -> Cassette
 pub fn Session::diagnose(Self, Request) -> MismatchReport
+pub fn Session::mode(Self) -> SessionMode
 pub fn Session::new(Cassette, SessionMode, MatchConfig) -> Self
 pub fn Session::new_with_redaction(Cassette, SessionMode, MatchConfig, RedactionConfig) -> Self
+pub fn Session::new_with_redaction_policy(Cassette, SessionMode, MatchConfig, RedactionPolicy) -> Self
+pub fn Session::record_response(Self, Request, Response) -> Result[Response, SessionError]
+pub fn Session::remaining_interactions(Self) -> Int
+pub fn Session::replay(Self, Request) -> Result[Response, SessionError]
 pub fn Session::send(Self, Request, (Request) -> Result[Response, TransportError]) -> Result[Response, SessionError]
 pub fn Session::with_defaults(Cassette, SessionMode) -> Self
+pub impl @debug.Debug for Session
 
 pub(all) enum SessionError {
   ReplayMiss(Array[MatchCandidate])
   TransportFailed(TransportError)
   RedactionFailed(RedactionError)
+  IncompleteReplay(Int)
+  InvalidMode
 } derive(Eq, @debug.Debug)
+pub fn SessionError::summary(Self) -> String
 
 pub(all) enum SessionMode {
   Record
@@ -228,7 +260,8 @@ pub(all) enum SessionMode {
 
 pub(all) enum TransportError {
   Failed(String)
-} derive(Eq, @debug.Debug)
+} derive(Eq)
+pub impl @debug.Debug for TransportError
 
 // Type aliases
 

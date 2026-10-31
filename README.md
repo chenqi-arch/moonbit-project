@@ -13,9 +13,9 @@ MoonVCR 不拦截系统流量。录制只会调用使用者显式选择的 trans
 
 ## 当前状态
 
-- 当前稳定版：`chenqi-arch/moonbit-project@0.3.0`；
-- `0.3.0` 包含真实 loopback HTTP、文件档案、独立请求/响应脱敏、增强契约和三组验收场景；
-- `0.2.0` 保留为旧基线，不含上述新能力。
+- 当前修复版本：`chenqi-arch/moonbit-project@0.3.1`，正式发布与公网复验状态见 `FINAL_ACCEPTANCE.md`；
+- `0.3.0` 及更早版本存在已确认的脱敏绕过，不应作为安全录制版本使用；旧 CI 未覆盖这些漏洞，不能代表安全合格；
+- `0.3.1` 修复非文本 Body 绕过、编码敏感名识别和片段留存，并加强会话封装、模式约束及错误输出；具体影响与升级行为见 `SECURITY.md`、`MIGRATION.md`。
 
 ## 已实现能力
 
@@ -26,7 +26,7 @@ MoonVCR 不拦截系统流量。录制只会调用使用者显式选择的 trans
 - Record、Replay、StrictOffline 会话，剩余交互计数和完整消费断言；
 - URL 用户信息、fragment、百分号编码敏感参数、常见敏感 header/query 脱敏；
 - 请求与响应独立的必填/可选 JSON 路径脱敏，失败时不写入 cassette；
-- 不暴露请求、响应和凭据原文的 replay miss、mismatch 与契约摘要；
+- 不直接回显请求/响应值的 replay miss 与 mismatch；契约报告包含配置的规则和字段路径，不应在这些名称中配置凭据；
 - 状态码、header 存在性/精确值、body 类型、必填/可选 JSON 字段和数组元素契约；
 - native 真实 HTTP GET/POST、header、JSON、二进制 body、连接失败和超时转换；
 - native cassette 大小限制、默认禁止覆盖、显式替换、同目录临时文件和同步写入；
@@ -40,7 +40,7 @@ MoonVCR 不拦截系统流量。录制只会调用使用者显式选择的 trans
 安装当前稳定版：
 
 ```text
-moon add chenqi-arch/moonbit-project@0.3.0
+moon add chenqi-arch/moonbit-project@0.3.1
 ```
 
 Mooncakes 发布包、Git 标签和 GitHub 验收证据见 `FINAL_ACCEPTANCE.md`。
@@ -112,7 +112,11 @@ let result = session.record_response(request, response)
 let text = session.cassette().encode()
 ```
 
-`json_paths` 是必填规则：路径缺失、路径非法或 body 不是有效 JSON 时失败关闭，当前交互不会写入 cassette。`optional_json_paths` 在字段不存在时跳过，但路径非法和 JSON 非法仍失败。未知业务敏感字段不会被自动猜测，必须显式配置。
+`json_paths` 是必填规则：路径缺失、路径非法或 body 不是有效 Text JSON 时失败关闭，当前交互不会写入 cassette。`optional_json_paths` 只允许有效 Text JSON 中的字段缺失；它不允许 Empty、Base64、损坏 JSON 或非法路径绕过检查。任一 JSON 规则存在时，非 Text Body 一律拒绝，不会尝试猜测解码。未配置 JSON 规则时，Empty/Text/Base64 仍按原样保留，默认不会自动识别 Body 内的秘密。
+
+GET 空 Body 与 POST JSON 应使用独立的请求/响应策略和会话，不能把 POST 的必填路径直接套在空 GET 请求上。完整真实示例见 `cmd/moonvcr-native-record`。录制成功仍把原始响应交给调用方业务代码，脱敏保护的是保存的副本。
+
+query 名称单次 UTF-8 百分号解码后转小写；URL 原始 `+` 视为空格，`%2B` 视为字面加号，自定义规则中的 `+` 按字面解释。无效编码保持原样，不递归解码。URL fragment 完全丢弃，userinfo 全部替换。
 
 ## 响应契约
 
@@ -132,7 +136,7 @@ let report = response.validate_contract(contract)
 guard report.is_valid() else { abort(report.summary()) }
 ```
 
-报告只包含规则、路径、类型和不可逆短摘要，不复制业务原文。该能力是面向 cassette 的小型确定性检查，不是完整 OpenAPI/JSON Schema 实现，也不会自动监测未录制的线上变化。
+报告包含规则、路径、类型、长度和非密码学短指纹，不复制响应值。指纹可被枚举，不提供加密或匿名化保证；不要公开含敏感结构信息的诊断。该能力是面向 cassette 的小型确定性检查，不是完整 OpenAPI/JSON Schema 实现，也不会自动监测未录制的线上变化。
 
 ## Native HTTP 与文件档案
 
@@ -151,6 +155,8 @@ let cassette = @native.load_cassette_default("fixtures/orders.json")
 - 不承诺自动跟随重定向，验收固定检查 302 保持为 302；
 - `save_cassette_new` 默认拒绝覆盖，`save_cassette_replace` 才允许显式替换；
 - 默认加载上限为 10 MB，超限在 JSON 解码前拒绝。
+
+`record_response` 只允许 Record 模式；其他模式返回 `InvalidMode`。`native.record_http` 遇到 Replay/StrictOffline 时直接离线回放，不执行 HTTP；显式 `send_http` 仍是调用方主动请求网络的入口。
 
 ## 可运行场景
 
@@ -191,6 +197,7 @@ moon run cmd/moonvcr-demo
 moon run cmd/moonvcr-pagination
 moon run cmd/moonvcr-order-contract
 moon run cmd/moonvcr-restricted-ci
+moon run cmd/moonvcr-security-acceptance
 moon package --list
 ```
 
@@ -222,7 +229,7 @@ native 真 HTTP 验收由 GitHub Ubuntu CI 自动完成：启动 MoonBit loopbac
 - native：`send_http/send_http_with_timeout/record_http`
 - native：`load_cassette/load_cassette_default/save_cassette_new/save_cassette_replace`
 
-编译器生成的完整接口以 `pkg.generated.mbti` 和 `native/pkg.generated.mbti` 为准。
+完整接口可用 `moon info --target native` 生成；根包接口 `pkg.generated.mbti` 保存在仓库中。Session 内部字段私有，请用 `cassette()` 取得隔离副本，用 `mode()` 查看模式。
 
 ## 故障排查
 
@@ -237,6 +244,7 @@ native 真 HTTP 验收由 GitHub Ubuntu CI 自动完成：启动 MoonBit loopbac
 
 - 不做 TLS MITM、系统代理、浏览器录制或任意进程流量拦截；
 - 不自动发现所有业务敏感字段；
+- `Cassette::encode`、文件保存和手工构造的 Request/Response 不是自动脱敏入口；应通过 Record 会话录制、审阅副本后保存，不能直接序列化原始数据；
 - 不实现完整 OpenAPI/JSON Schema；
 - cassette 默认加载上限 10 MB，容量验收覆盖到 10,000 条，不承诺无限规模；
 - matcher 为确定性线性候选扫描，大 cassette 应按服务或测试套件拆分；
