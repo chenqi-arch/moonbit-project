@@ -4,6 +4,7 @@
 pub suberror HttpAdapterError {
   UnsupportedMethod
   UnsupportedRequestBody
+  UnsupportedDuplicateHeaders
   InvalidTimeout
   TimedOut
   RequestFailed
@@ -31,10 +32,17 @@ fn request_method(
 }
 
 ///|
-fn request_headers(headers : Array[@moonvcr.Header]) -> @http.Headers {
+/// The async client has one value per case-insensitive header name. Reject
+/// duplicate input names rather than silently discarding or merging values.
+fn request_headers(
+  headers : Array[@moonvcr.Header],
+) -> @http.Headers raise HttpAdapterError {
   let result : @http.Headers = Map([])
   for header in headers {
-    result[header.name] = header.value
+    match result.get(header.name) {
+      Some(_) => raise UnsupportedDuplicateHeaders
+      None => result[header.name] = header.value
+    }
   }
   result
 }
@@ -52,12 +60,50 @@ fn request_body(body : @moonvcr.Body) -> Bytes raise HttpAdapterError {
 }
 
 ///|
-fn response_headers(headers : @http.Headers) -> Array[@moonvcr.Header] {
+/// Rebuild the cookie fields exposed by the official parser. Attribute
+/// spelling/order is canonical, not the original HTTP header byte sequence.
+fn cookie_header_value(cookie : @http.Cookie) -> String {
+  let fields = [cookie.name + "=" + cookie.value]
+  match cookie.path {
+    Some(value) => fields.push("Path=" + value)
+    None => ()
+  }
+  match cookie.expires_raw {
+    Some(value) => fields.push("Expires=" + value)
+    None => ()
+  }
+  match cookie.max_age {
+    Some(value) => fields.push("Max-Age=" + value.to_string())
+    None => ()
+  }
+  match cookie.domain {
+    Some(value) => fields.push("Domain=" + value)
+    None => ()
+  }
+  if cookie.secure {
+    fields.push("Secure")
+  }
+  if cookie.http_only {
+    fields.push("HttpOnly")
+  }
+  for extension in cookie.extensions {
+    fields.push(extension)
+  }
+  fields.join("; ")
+}
+
+///|
+fn response_headers(response : @http.Response) -> Array[@moonvcr.Header] {
   let result : Array[@moonvcr.Header] = []
-  for name, value in headers {
+  for name, value in response.headers {
     result.push({ name: name.to_string(), value, })
   }
   result.sort_by((left, right) => left.name.compare(right.name))
+  // async separates Set-Cookie from its ordinary header map. Keep each cookie
+  // as one array entry and retain the order reported by its parser.
+  for cookie in response.cookies {
+    result.push({ name: "Set-Cookie", value: cookie_header_value(cookie), })
+  }
   result
 }
 
@@ -90,7 +136,7 @@ pub async fn send_http_with_timeout(
   guard result is Some((response, data)) else { raise TimedOut }
   {
     status: response.code,
-    headers: response_headers(response.headers),
+    headers: response_headers(response),
     body: response_body(data),
   }
 }
@@ -127,6 +173,8 @@ pub fn HttpAdapterError::summary(self : HttpAdapterError) -> String {
   match self {
     UnsupportedMethod => "unsupported HTTP method"
     UnsupportedRequestBody => "unsupported request body representation"
+    UnsupportedDuplicateHeaders =>
+      "duplicate request header names are not supported"
     InvalidTimeout => "HTTP timeout must be positive"
     TimedOut => "HTTP request timed out"
     RequestFailed => "HTTP request failed"

@@ -2,6 +2,8 @@
 
 本文件把可靠性目标映射到可运行测试和故障门禁。测试数量只用于核对执行完整性，不能代替逐项行为验收。
 
+0.3.2针对独立审核的F1–F7补齐测试与修复，原始10项修前2通过/8失败、修后10/10；当前核心129/129通过。`audit_paths_test.mbt`、`audit_matching_test.mbt`、`audit_consistency_test.mbt`补充精确路径、契约、重复值保序与3600组合诊断/回放对照。native增加3项头部测试、10项硬读取预算测试及真实双Cookie验收；完整Ubuntu执行和发布状态仅以 `AUDIT_REMEDIATION_0.3.2.md`、`FINAL_ACCEPTANCE.md` 实际记录为准。
+
 0.3.0 的测试未覆盖官方发现的两条漏洞，已经导致正式验收失败。0.3.1 新增 `security_redaction_test.mbt` 的16项回归与 `native/security_test.mbt` 的3项异步/文件测试；本地和Ubuntu CI核心92/92，Ubuntu native104/104通过（含核心92，不重复相加），证据run41163071443。另有独立子代理1024编码组合与40录制组合、外部访问私有字段编译负例。详细复核见 `SECURITY_FIX_REPORT.md`，不要把旧版76/85绿色结果当作安全证明。
 
 公开安全验收入口：`moon run cmd/moonvcr-security-acceptance`；候选归档与公网包均须执行12条失败关闭录制、1024条编码录制、模式保护、错误Debug和私有字段负例。CI先验候选归档，发布后再切换为正式包版本。

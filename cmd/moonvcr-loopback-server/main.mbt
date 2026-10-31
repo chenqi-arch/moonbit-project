@@ -59,6 +59,34 @@ async fn handle_request(
       })
       ..write(b"\xff\x00\xfe")
       .end_response()
+    (@http.Get, "/cookies") =>
+      conn
+      ..send_response(
+        200,
+        "OK",
+        extra_headers={
+          "Content-Type": "text/plain",
+          "X-MoonVCR-Server": "loopback",
+        },
+        cookies=[
+          @http.Cookie(
+            "session",
+            "cookie-secret-a",
+            path="/",
+            expires_raw="Wed, 21 Oct 2037 07:28:00 GMT",
+            max_age=3_600L,
+            domain="example.test",
+            secure=true,
+            http_only=true,
+            extensions=["SameSite=Lax", "Partitioned"],
+          ),
+          @http.Cookie("csrf", "cookie-secret-b", path="/orders", extensions=[
+            "SameSite=Strict",
+          ]),
+        ],
+      )
+      ..write("cookies")
+      .end_response()
     (@http.Get, "/slow") => {
       @async.sleep(500)
       send_text(conn, 200, "OK", "slow response")

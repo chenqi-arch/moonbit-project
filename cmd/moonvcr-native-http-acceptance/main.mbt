@@ -19,6 +19,17 @@ fn header_value(response : @moonvcr.Response, name : String) -> String? {
 }
 
 ///|
+fn header_values(response : @moonvcr.Response, name : String) -> Array[String] {
+  let values = []
+  for header in response.headers {
+    if header.name.to_lower() == name.to_lower() {
+      values.push(header.value)
+    }
+  }
+  values
+}
+
+///|
 async fn main {
   let get_response = @native.send_http(request("GET", "/items?page=1"))
   guard get_response.status == 200 else { abort("GET status mismatch") }
@@ -61,6 +72,79 @@ async fn main {
   let redirect = @native.send_http(request("GET", "/redirect"))
   guard redirect.status == 302 else { abort("redirect boundary changed") }
 
+  let cookie_request = request("GET", "/cookies")
+  let cookie_response = @native.send_http(cookie_request)
+  let cookie_values = header_values(cookie_response, "set-cookie")
+  guard cookie_values.length() == 2 else {
+    abort("native HTTP lost a Set-Cookie response field")
+  }
+  guard cookie_values[0] ==
+    "session=cookie-secret-a; Path=/; Expires=Wed, 21 Oct 2037 07:28:00 GMT; Max-Age=3600; Domain=example.test; Secure; HttpOnly; SameSite=Lax; Partitioned" &&
+    cookie_values[1] == "csrf=cookie-secret-b; Path=/orders; SameSite=Strict" else {
+    abort("native HTTP changed cookie values, attributes, or cookie order")
+  }
+  let cookie_session = @moonvcr.Session::with_defaults(
+    @moonvcr.Cassette::empty(),
+    @moonvcr.Record,
+  )
+  let recorded_cookie_response = match
+    @native.record_http(cookie_session, cookie_request) {
+    Ok(response) => response
+    Err(error) => abort(error.summary())
+  }
+  guard header_values(recorded_cookie_response, "set-cookie") == cookie_values else {
+    abort("recording changed the business-visible original Set-Cookie fields")
+  }
+  let cookie_cassette = cookie_session.cassette()
+  guard cookie_cassette.interactions.length() == 1 else {
+    abort("cookie recording did not append exactly one interaction")
+  }
+  let stored_cookie_values = header_values(
+    cookie_cassette.interactions[0].response,
+    "set-cookie",
+  )
+  guard stored_cookie_values ==
+    [@moonvcr.REDACTION_MARKER, @moonvcr.REDACTION_MARKER] else {
+    abort("recorded Set-Cookie fields were not individually redacted")
+  }
+  let encoded_cookie_cassette = cookie_cassette.encode()
+  guard !encoded_cookie_cassette.contains("cookie-secret-a") &&
+    !encoded_cookie_cassette.contains("cookie-secret-b") else {
+    abort("recorded cassette retained a cookie secret")
+  }
+  let cookie_replay = @moonvcr.Session::with_defaults(
+    cookie_cassette,
+    @moonvcr.StrictOffline,
+  )
+  let replayed_cookies = match
+    @native.record_http(cookie_replay, cookie_request, timeout_millis=0) {
+    Ok(response) => response
+    Err(error) => abort(error.summary())
+  }
+  guard header_values(replayed_cookies, "set-cookie") == stored_cookie_values else {
+    abort("offline cookie replay changed the stored redacted fields")
+  }
+  guard cookie_replay.assert_complete() is Ok(_) else {
+    abort("offline cookie replay did not consume its interaction")
+  }
+  let duplicate_headers_rejected = try {
+    let _ = @native.send_http(
+      request("GET", "/health", headers=[
+        { name: "X-Repeated", value: "first-header-secret", },
+        { name: "x-repeated", value: "second-header-secret", },
+      ]),
+    )
+    false
+  } catch {
+    @native.UnsupportedDuplicateHeaders => true
+    _ => false
+  } noraise {
+    _ => false
+  }
+  guard duplicate_headers_rejected else {
+    abort("native HTTP silently accepted duplicate request header names")
+  }
+
   let invalid_method = try {
     let _ = @native.send_http(request("NOT-A-METHOD", "/health"))
     "not rejected"
@@ -101,6 +185,6 @@ async fn main {
     abort("connection failure error mismatch")
   }
   println(
-    "native HTTP acceptance passed: GET POST headers JSON bytes errors timeout status redirect",
+    "native HTTP acceptance passed: GET POST headers JSON bytes errors timeout status redirect duplicate-header-rejection two-set-cookie business-original redacted-cassette offline-cookie-replay",
   )
 }

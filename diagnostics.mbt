@@ -202,34 +202,36 @@ fn diagnostic_view(
   request : Request,
   config : MatchConfig,
   redaction : RedactionConfig,
+  match_source : Request,
 ) -> DiagnosticView {
   let { method, url, headers, body, } = request
   let normalized_url = normalize_url(redact_url(url + "", redaction))
-  let (match_base_url, match_query) = match normalized_url.split_once("?") {
+  let (safe_base_url, _) = match normalized_url.split_once("?") {
     Some((base, query)) => (base.to_owned(), query.to_owned())
     None => (normalized_url + "", "")
   }
-  let (header_summary, match_headers) = diagnostic_header_parts(
-    headers, config, redaction,
-  )
-  let (body_summary, match_body) = diagnostic_body_parts(
-    body, config, redaction,
-  )
+  let matching_url = normalize_url(match_source.url)
+  let (match_base_url, match_query) = match matching_url.split_once("?") {
+    Some((base, query)) => (base.to_owned(), query.to_owned())
+    None => (matching_url, "")
+  }
+  let (header_summary, _) = diagnostic_header_parts(headers, config, redaction)
+  let (body_summary, _) = diagnostic_body_parts(body, config, redaction)
   {
     method: safe_method_description(method),
-    match_method: method.trim().to_owned().to_upper(),
+    match_method: match_source.method.trim().to_owned().to_upper(),
     base_url: "<url-base len=" +
-    match_base_url.length().to_string() +
+    safe_base_url.length().to_string() +
     ",fp=" +
-    safe_fingerprint(match_base_url + "") +
+    safe_fingerprint(safe_base_url) +
     ">",
     query: diagnostic_query(url, redaction),
     headers: header_summary,
     body: body_summary,
     match_base_url,
     match_query,
-    match_headers,
-    match_body,
+    match_headers: normalize_headers(match_source.headers, config),
+    match_body: normalize_body(match_source.body, config.body_mode),
   }
 }
 
@@ -267,7 +269,22 @@ pub fn diagnose_mismatch_with_redaction(
   consumed : Array[Bool],
   redaction : RedactionConfig,
 ) -> MismatchReport {
-  let actual = diagnostic_view(request, config, redaction)
+  let matching_request = match redact_request(request, redaction) {
+    Ok(safe) => safe
+    Err(_) =>
+      return {
+        request_key: request_safe_summary(request),
+        differences: [
+          {
+            candidate_index: -1,
+            kind: Body,
+            expected: "request satisfying redaction policy",
+            actual: "redaction failed",
+          },
+        ],
+      }
+  }
+  let actual = diagnostic_view(request, config, redaction, matching_request)
   let differences : Array[Mismatch] = []
   let mut has_unconsumed = false
   let mut exact_unconsumed = false
@@ -279,17 +296,17 @@ pub fn diagnose_mismatch_with_redaction(
       cassette.interactions[index].request,
       config,
       redaction,
+      cassette.interactions[index].request,
     )
     let method_matches = actual.match_method == expected.match_method
     let base_url_matches = actual.match_base_url == expected.match_base_url
     let query_matches = actual.match_query == expected.match_query
     let headers_match = actual.match_headers == expected.match_headers
     let body_matches = actual.match_body == expected.match_body
-    let exact = method_matches &&
-      base_url_matches &&
-      query_matches &&
-      headers_match &&
-      body_matches
+    // Use the same request key as replay: only the incoming request has been
+    // redacted. A raw imported cassette must not become an apparent match.
+    let exact = request_match_key(matching_request, config) ==
+      request_match_key(cassette.interactions[index].request, config)
     if used {
       if exact {
         exact_consumed = true

@@ -146,4 +146,231 @@ fn main {
     rejected.to_string() +
     " encoded_names=1024 retained_secrets=0",
   )
+  audit_followup_acceptance()
+}
+
+///|
+/// Public-API checks for the second independent audit. These run against the
+/// candidate archive and, after publication, a downloaded registry package.
+fn audit_followup_acceptance() -> Unit {
+  let mut pointer_cases = 0
+  for (suffix, escaped) in [(" ", " "), ("\t", "\\t"), ("\n", "\\n")] {
+    for optional in [false, true] {
+      for response_side in [false, true] {
+        let rules = @moonvcr.RedactionConfig::default()
+        if optional {
+          rules.optional_json_paths.push("/token" + suffix)
+        } else {
+          rules.json_paths.push("/token" + suffix)
+        }
+        let policy : @moonvcr.RedactionPolicy = if response_side {
+          { request: @moonvcr.RedactionConfig::default(), response: rules, }
+        } else {
+          { request: rules, response: @moonvcr.RedactionConfig::default(), }
+        }
+        let body = @moonvcr.Text(
+          "{\"token" +
+          escaped +
+          "\":\"pointer-audit-secret\",\"token\":\"public-control\"}",
+        )
+        let request : @moonvcr.Request = {
+          method: "POST",
+          url: "https://test.invalid",
+          headers: [],
+          body: if response_side {
+            @moonvcr.Empty
+          } else {
+            body
+          },
+        }
+        let response : @moonvcr.Response = {
+          status: 200,
+          headers: [],
+          body: if response_side {
+            body
+          } else {
+            @moonvcr.Empty
+          },
+        }
+        let session = @moonvcr.Session::new_with_redaction_policy(
+          @moonvcr.Cassette::empty(),
+          @moonvcr.Record,
+          @moonvcr.MatchConfig::default(),
+          policy,
+        )
+        require(
+          session.record_response(request, response) is Ok(_),
+          "exact pointer recording failed",
+        )
+        let saved = session.cassette().encode()
+        require(
+          !saved.contains("pointer-audit-secret"),
+          "whitespace pointer secret retained",
+        )
+        require(
+          saved.contains("public-control"),
+          "pointer modified the adjacent key",
+        )
+        pointer_cases += 1
+      }
+    }
+  }
+  let original : @moonvcr.Request = {
+    method: "GET",
+    url: "https://test.invalid/?role=user&role=admin",
+    headers: [],
+    body: @moonvcr.Empty,
+  }
+  let changed : @moonvcr.Request = {
+    method: "GET",
+    url: "https://test.invalid/?role=admin&role=user",
+    headers: [],
+    body: @moonvcr.Empty,
+  }
+  let config = @moonvcr.MatchConfig::default()
+  require(
+    @moonvcr.request_match_key(original, config) !=
+    @moonvcr.request_match_key(changed, config),
+    "duplicate query order lost",
+  )
+  let header_first : @moonvcr.Request = {
+    method: "GET",
+    url: "https://test.invalid",
+    body: @moonvcr.Empty,
+    headers: [
+      { name: "X-Mode", value: "user", },
+      { name: "x-mode", value: "admin", },
+    ],
+  }
+  let header_reversed : @moonvcr.Request = {
+    method: "GET",
+    url: "https://test.invalid",
+    body: @moonvcr.Empty,
+    headers: [
+      { name: "x-mode", value: "admin", },
+      { name: "X-Mode", value: "user", },
+    ],
+  }
+  require(
+    @moonvcr.request_match_key(header_first, config) !=
+    @moonvcr.request_match_key(header_reversed, config),
+    "duplicate header order lost",
+  )
+  let raw : @moonvcr.Request = {
+    method: "GET",
+    url: "https://test.invalid/?token=import-audit-secret",
+    headers: [],
+    body: @moonvcr.Empty,
+  }
+  let cassette : @moonvcr.Cassette = {
+    format_version: 1,
+    interactions: [
+      {
+        request: raw,
+        response: { status: 200, headers: [], body: @moonvcr.Empty, },
+      },
+    ],
+  }
+  let session = @moonvcr.Session::with_defaults(
+    cassette,
+    @moonvcr.StrictOffline,
+  )
+  require(
+    session.replay(raw) is Err(_),
+    "raw imported cassette unexpectedly matched",
+  )
+  let report = session.diagnose(raw)
+  require(
+    report.differences.length() > 0,
+    "diagnosis disagrees with replay miss",
+  )
+  require(
+    !@debug.to_string(report).contains("import-audit-secret"),
+    "diagnosis leaked raw cassette",
+  )
+  let whitespace_contract = @moonvcr.ResponseContract::permissive()
+  whitespace_contract.json_fields.push({
+    path: "/id ",
+    expected_kind: @moonvcr.JsonNumber,
+  })
+  let incompatible : @moonvcr.Response = {
+    status: 200,
+    headers: [],
+    body: @moonvcr.Text("{\"id \":\"wrong\",\"id\":123}"),
+  }
+  require(
+    !incompatible.validate_contract(whitespace_contract).is_valid(),
+    "contract checked adjacent key",
+  )
+  let array_request : @moonvcr.Request = {
+    method: "POST",
+    url: "https://test.invalid",
+    headers: [],
+    body: @moonvcr.Text(
+      "{\"items\":[{\"token\":\"a\"},{\"token\":\"array-audit-secret\"}]}",
+    ),
+  }
+  for optional in [false, true] {
+    let rules = @moonvcr.RedactionConfig::default()
+    if optional {
+      rules.optional_json_paths.push("/items/01/token")
+    } else {
+      rules.json_paths.push("/items/01/token")
+    }
+    require(
+      @moonvcr.redact_request(array_request, rules) is Err(_),
+      "invalid array index accepted",
+    )
+  }
+  let array_contract = @moonvcr.ResponseContract::permissive()
+  array_contract.optional_json_fields.push({
+    path: "/items/01/token",
+    expected_kind: @moonvcr.JsonString,
+  })
+  let array_response : @moonvcr.Response = {
+    status: 200,
+    headers: [],
+    body: array_request.body,
+  }
+  require(
+    !array_response.validate_contract(array_contract).is_valid(),
+    "optional contract ignored invalid index",
+  )
+  let nested : @moonvcr.Request = {
+    method: "POST",
+    url: "https://test.invalid",
+    headers: [],
+    body: @moonvcr.Text(
+      "{\"credentials\":{\"token\":\"overlap-audit-secret\"}}",
+    ),
+  }
+  let mut saved_body : @moonvcr.Body? = None
+  for
+    paths in [
+      ["/credentials", "/credentials/token"],
+      ["/credentials/token", "/credentials"],
+    ] {
+    let rules = @moonvcr.RedactionConfig::default()
+    for path in paths {
+      rules.json_paths.push(path)
+    }
+    let safe = match @moonvcr.redact_request(nested, rules) {
+      Ok(value) => value
+      Err(_) => abort("overlapping rules depended on order")
+    }
+    match saved_body {
+      None => saved_body = Some(safe.body)
+      Some(expected) =>
+        require(expected == safe.body, "overlapping results depended on order")
+    }
+    require(
+      !@debug.to_string(safe).contains("overlap-audit-secret"),
+      "overlap retained secret",
+    )
+  }
+  println(
+    "audit acceptance passed pointer_cases=" +
+    pointer_cases.to_string() +
+    " retained_secrets=0 duplicate_order=preserved diagnosis=consistent invalid_indices=rejected overlapping_rules=stable",
+  )
 }

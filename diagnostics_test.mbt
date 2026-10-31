@@ -201,22 +201,18 @@ test "diagnostics reuse ignored header and body matching rules" {
 }
 
 ///|
-test "diagnostics reuse configured JSON redaction paths" {
+test "diagnostics reuse configured JSON redaction paths on recorded data" {
   let expected = diagnostic_request(
     "POST",
     "https://example.test/items",
     [],
-    Text(
-      "{\u{22}credentials\u{22}:{\u{22}token\u{22}:\u{22}expected\u{22},\u{22}ok\u{22}:true}",
-    ),
+    Text("{\"credentials\":{\"token\":\"expected\"},\"ok\":true}"),
   )
   let actual = diagnostic_request(
     "POST",
     "https://example.test/items",
     [],
-    Text(
-      "{\u{22}credentials\u{22}:{\u{22}token\u{22}:\u{22}actual\u{22},\u{22}ok\u{22}:true}",
-    ),
+    Text("{\"credentials\":{\"token\":\"actual\"},\"ok\":true}"),
   )
   let redaction : RedactionConfig = {
     headers: [],
@@ -224,9 +220,13 @@ test "diagnostics reuse configured JSON redaction paths" {
     json_paths: ["/credentials/token"],
     optional_json_paths: [],
   }
+  let saved = match redact_request(expected, redaction) {
+    Ok(safe) => safe
+    Err(_) => abort("diagnostic fixture redaction failed")
+  }
   let report = diagnose_mismatch_with_redaction(
     actual,
-    diagnostic_cassette(expected),
+    diagnostic_cassette(saved),
     MatchConfig::default(),
     [false],
     redaction,

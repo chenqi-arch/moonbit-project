@@ -13,9 +13,9 @@ MoonVCR 不拦截系统流量。录制只会调用使用者显式选择的 trans
 
 ## 当前状态
 
-- 当前稳定修复版：[`chenqi-arch/moonbit-project@0.3.1`](https://mooncakes.io/docs/chenqi-arch/moonbit-project@0.3.1)，已正式发布并完成公网独立安全复验，详细证据见 `FINAL_ACCEPTANCE.md`；
-- `0.3.0` 及更早版本存在已确认的脱敏绕过，不应作为安全录制版本使用；旧 CI 未覆盖这些漏洞，不能代表安全合格；
-- `0.3.1` 修复非文本 Body 绕过、编码敏感名识别和片段留存，并加强会话封装、模式约束及错误输出；具体影响与升级行为见 `SECURITY.md`、`MIGRATION.md`。
+- 当前源码修复版本：`0.3.2`；发布状态与对应 SHA/CI 证据见 `FINAL_ACCEPTANCE.md`；
+- `0.3.1` 及更早版本存在已确认的脱敏绕过或错误匹配，不能依据旧 CI 全绿认定安全；请升级并审阅重录旧档案；
+- `0.3.2` 对独立审核发现的七类问题补充修复，包括精确 JSON 路径、重复参数顺序、native 头信息、有界文件读取和诊断一致性；逐项说明见 `AUDIT_REMEDIATION_0.3.2.md`，兼容行为见 `MIGRATION.md`。
 
 ## 已实现能力
 
@@ -40,7 +40,7 @@ MoonVCR 不拦截系统流量。录制只会调用使用者显式选择的 trans
 安装当前稳定版：
 
 ```text
-moon add chenqi-arch/moonbit-project@0.3.1
+moon add chenqi-arch/moonbit-project@0.3.2
 ```
 
 Mooncakes 发布包、Git 标签和 GitHub 验收证据见 `FINAL_ACCEPTANCE.md`。
@@ -118,6 +118,10 @@ GET 空 Body 与 POST JSON 应使用独立的请求/响应策略和会话，不�
 
 query 名称单次 UTF-8 百分号解码后转小写；URL 原始 `+` 视为空格，`%2B` 视为字面加号，自定义规则中的 `+` 按字面解释。无效编码保持原样，不递归解码。URL fragment 完全丢弃，userinfo 全部替换。
 
+JSON Pointer 路径必须原文以 `/` 开始，键中的空格、Tab、换行和 `~0/~1` 转义精确保留；只有 dot shorthand 会裁剪格式空白。本库支持字段寻址子集，空字符串根路径不支持，`/` 可以定位空对象键。数组只接受 `0` 或无前导零的十进制索引；对象键 `"01"` 仍合法。必填/可选规则先在原始 JSON 上验证，再按深度从深到浅覆盖，父子重叠规则不受配置次序影响。
+
+匹配允许不同 query 名称、不同 header 名称换序，但保留每个同名组内部的值顺序；同名 query 的编码别名也归到同组。query 值不裁剪空白。不同名称之间的全局顺序不参与匹配；依赖该顺序的接口不在当前匹配策略范围内。原始百分号拼写仍参与最终匹配，等价编码可能保守地未命中。
+
 ## 响应契约
 
 ```mbt
@@ -153,8 +157,10 @@ let cassette = @native.load_cassette_default("fixtures/orders.json")
 - 非 2xx 和 3xx 原样返回给业务契约判断；
 - TLS 证书验证使用官方客户端默认值，没有“关闭证书验证”选项；
 - 不承诺自动跟随重定向，验收固定检查 302 保持为 302；
+- native 底层头部 Map 无法无损发送重复请求头，因此同名请求头（大小写不敏感）会在发网前返回 `UnsupportedDuplicateHeaders`，不能静默覆盖；
+- 原始业务响应保留各个 `Set-Cookie` 及公开解析属性；按依赖解析结果规范化重建，不保证 HTTP 字节拼写。录制副本才按规则逐条脱敏；
 - `save_cassette_new` 默认拒绝覆盖，`save_cassette_replace` 才允许显式替换；
-- 默认加载上限为 10 MB，超限在 JSON 解码前拒绝。
+- 默认加载上限为 10 MB，同一打开句柄最多读取上限加一字节，在 UTF-8/JSON 解码前拒绝超限；文件增长/路径替换不绕过读取预算。`TooLarge(n)` 的 n 是观察到的字节数下界，不是完整文件大小。
 
 `record_response` 只允许 Record 模式；其他模式返回 `InvalidMode`。`native.record_http` 遇到 Replay/StrictOffline 时直接离线回放，不执行 HTTP；显式 `send_http` 仍是调用方主动请求网络的入口。
 
@@ -244,6 +250,7 @@ native 真 HTTP 验收由 GitHub Ubuntu CI 自动完成：启动 MoonBit loopbac
 
 - 不做 TLS MITM、系统代理、浏览器录制或任意进程流量拦截；
 - 不自动发现所有业务敏感字段；
+- native HTTP 当前使用依赖的完整响应 API，没有响应字节数硬上限；只应对可信、大小受控的服务录制，cassette 文件上限不约束网络响应大小；
 - `Cassette::encode`、文件保存和手工构造的 Request/Response 不是自动脱敏入口；应通过 Record 会话录制、审阅副本后保存，不能直接序列化原始数据；
 - 不实现完整 OpenAPI/JSON Schema；
 - cassette 默认加载上限 10 MB，容量验收覆盖到 10,000 条，不承诺无限规模；

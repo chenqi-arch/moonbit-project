@@ -261,13 +261,11 @@ fn decode_pointer_token(
 ///|
 /// Parse JSON Pointer or the documented dot shorthand into object-key tokens.
 fn parse_redaction_path(path : String) -> Result[Array[String], RedactionError] {
-  let trimmed = path.trim().to_owned()
-  if trimmed.length() == 0 || trimmed == "$" {
-    return Err(InvalidPath(path + ""))
-  }
-  if trimmed.has_prefix("/") {
+  // JSON Pointer identifies exact object keys. Whitespace in a pointer is
+  // data, including in its final token; trimming it could select a neighbor.
+  if path.has_prefix("/") {
     let tokens : Array[String] = []
-    let tail = trimmed[1:].to_owned()
+    let tail = path[1:].to_owned()
     for raw in tail.split("/") {
       match decode_pointer_token(raw, path + "") {
         Ok(token) => tokens.push(token)
@@ -275,6 +273,11 @@ fn parse_redaction_path(path : String) -> Result[Array[String], RedactionError] 
       }
     }
     return Ok(tokens)
+  }
+  // Only the separate dot shorthand accepts surrounding formatting spaces.
+  let trimmed = path.trim().to_owned()
+  if trimmed.length() == 0 || trimmed == "$" {
+    return Err(InvalidPath(path + ""))
   }
   let shorthand = if trimmed.has_prefix("$.") {
     trimmed[2:].to_owned()
@@ -296,7 +299,7 @@ fn parse_redaction_path(path : String) -> Result[Array[String], RedactionError] 
 
 ///|
 fn parse_array_index(token : String) -> Int? {
-  if token.length() == 0 {
+  if token.length() == 0 || (token.length() > 1 && token.has_prefix("0")) {
     return None
   }
   let mut result = 0
@@ -363,31 +366,59 @@ fn redact_json_at(
 }
 
 ///|
+priv struct RedactionTarget {
+  path : String
+  tokens : Array[String]
+  required : Bool
+}
+
+///|
 fn redact_json_text(
   text : String,
   config : RedactionConfig,
 ) -> Result[String, RedactionError] {
-  let mut json = @json.parse(text) catch {
+  let original = @json.parse(text) catch {
     _ => return Err(InvalidJson("body is not valid JSON text"))
   }
-  for path in config.json_paths {
-    let tokens = match parse_redaction_path(path + "") {
-      Ok(tokens) => tokens
-      Err(error) => return Err(error)
+  let targets : Array[RedactionTarget] = []
+  for
+    (required, paths) in [
+      (true, config.json_paths),
+      (false, config.optional_json_paths),
+    ] {
+    for path in paths {
+      let tokens = match parse_redaction_path(path + "") {
+        Ok(tokens) => tokens
+        Err(error) => return Err(error)
+      }
+      targets.push({ path: path + "", tokens, required, })
     }
-    json = match redact_json_at(json, tokens, 0, path + "") {
-      Ok(updated) => updated
+  }
+  // A descendant must be processed before an ancestor can replace its whole
+  // subtree. The secondary lexical order keeps equal-depth outcomes stable.
+  targets.sort_by((left, right) => {
+    let depth_order = right.tokens.length().compare(left.tokens.length())
+    if depth_order != 0 {
+      depth_order
+    } else {
+      left.path.compare(right.path)
+    }
+  })
+  let present : Array[RedactionTarget] = []
+  // Validate every rule against the untouched document. In particular, an
+  // ancestor's marker must not hide a missing required or invalid optional
+  // descendant. redact_json_at creates copies rather than mutating original.
+  for target in targets {
+    match redact_json_at(original, target.tokens, 0, target.path) {
+      Ok(_) => present.push(target)
+      Err(MissingPath(_)) if !target.required => ()
       Err(error) => return Err(error)
     }
   }
-  for path in config.optional_json_paths {
-    let tokens = match parse_redaction_path(path + "") {
-      Ok(tokens) => tokens
-      Err(error) => return Err(error)
-    }
-    match redact_json_at(json, tokens, 0, path + "") {
-      Ok(updated) => json = updated
-      Err(MissingPath(_)) => ()
+  let mut json = original
+  for target in present {
+    json = match redact_json_at(json, target.tokens, 0, target.path) {
+      Ok(updated) => updated
       Err(error) => return Err(error)
     }
   }

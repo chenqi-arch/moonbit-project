@@ -60,51 +60,92 @@ fn normalize_query(url : String) -> String {
   match without_fragment.split_once("?") {
     None => without_fragment
     Some((base, raw_query)) => {
-      let parts : Array[String] = []
+      let parts : Array[(String, String, Int)] = []
       for raw_part in raw_query.split("&") {
-        let part = raw_part.to_owned().trim().to_owned()
+        let part = raw_part.to_owned()
         if part.length() == 0 {
           continue
         }
-        let normalized = match part.split_once("=") {
+        let (name, normalized) = match part.split_once("=") {
           Some((key, value)) =>
-            normalized_header_value(key.to_owned()) +
-            "=" +
-            normalized_header_value(value.to_owned())
-          None => normalized_header_value(part) + "="
+            (key.to_owned(), key.to_owned() + "=" + value.to_owned())
+          None => (part, part + "=")
         }
-        parts.push(normalized)
+        // Encoded spellings of one name still share an ordered value group.
+        parts.push(
+          (
+            percent_decode_query_name(name, plus_as_space=true),
+            normalized,
+            parts.length(),
+          ),
+        )
       }
       if parts.length() == 0 {
         base.to_owned()
       } else {
-        parts.sort_by((left, right) => left.compare(right))
-        base.to_owned() + "?" + parts.join("&")
+        parts.sort_by((left, right) => {
+          let (left_name, _, left_index) = left
+          let (right_name, _, right_index) = right
+          let order = left_name.compare(right_name)
+          if order == 0 {
+            left_index.compare(right_index)
+          } else {
+            order
+          }
+        })
+        base.to_owned() +
+        "?" +
+        parts
+        .map(part => {
+          let (_, value, _) = part
+          value
+        })
+        .join("&")
       }
     }
   }
 }
 
 ///|
-/// Remove fragments and sort query pairs without decoding user data.
+/// Remove fragments and order different query names without changing the
+/// relative order of repeated names or trimming query values.
 pub fn normalize_url(url : String) -> String {
   normalize_query(url)
 }
 
 ///|
 fn normalize_headers(headers : Array[Header], config : MatchConfig) -> String {
-  let parts : Array[String] = []
+  let parts : Array[(String, String, Int)] = []
   for header in headers {
     if should_include_header(header.name, config) {
+      let name = normalized_header_name(header.name)
       parts.push(
-        length_prefix(normalized_header_name(header.name)) +
-        "=" +
-        length_prefix(normalized_header_value(header.value)),
+        (
+          name,
+          length_prefix(name) +
+          "=" +
+          length_prefix(normalized_header_value(header.value)),
+          parts.length(),
+        ),
       )
     }
   }
-  parts.sort_by((left, right) => left.compare(right))
-  parts.join("&")
+  parts.sort_by((left, right) => {
+    let (left_name, _, left_index) = left
+    let (right_name, _, right_index) = right
+    let order = left_name.compare(right_name)
+    if order == 0 {
+      left_index.compare(right_index)
+    } else {
+      order
+    }
+  })
+  parts
+  .map(part => {
+    let (_, value, _) = part
+    value
+  })
+  .join("&")
 }
 
 ///|

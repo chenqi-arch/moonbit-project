@@ -80,11 +80,13 @@ jobs:
 
       - name: Candidate archive consumer and security acceptance
         shell: pwsh
-        run: ./scripts/verify-public-consumer.ps1 -ArchivePath ./_build/publish/chenqi-arch-moonbit-project-0.3.1.zip
+        run: ./scripts/verify-public-consumer.ps1 -ArchivePath ./_build/publish/chenqi-arch-moonbit-project-0.3.2.zip
 
-      - name: Reproduce README against public Mooncakes package
+      # 0.3.2 must pass candidate/native gates before it can be published.
+      # This temporary old API check is explicitly NOT a security proof.
+      - name: Reproduce README against previously published API baseline
         shell: pwsh
-        run: ./scripts/verify-public-consumer.ps1
+        run: ./scripts/verify-public-consumer.ps1 -Version 0.3.1 -BaselineOnly
 
   native:
     runs-on: ubuntu-latest

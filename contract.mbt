@@ -234,28 +234,28 @@ fn safe_header_value(value : String) -> String {
 }
 
 ///|
-fn json_value_at(value : Json, tokens : Array[String]) -> Json? {
+fn json_value_at(value : Json, tokens : Array[String]) -> Result[Json?, Unit] {
   let mut current = value
   for token in tokens {
     current = match current {
       Object(members) =>
         match members.get(token + "") {
           Some(child) => child
-          None => return None
+          None => return Ok(None)
         }
       Array(items) =>
         match parse_array_index(token + "") {
           Some(index) =>
             match items.get(index) {
               Some(child) => child
-              None => return None
+              None => return Ok(None)
             }
-          None => return None
+          None => return Err(())
         }
-      _ => return None
+      _ => return Ok(None)
     }
   }
-  Some(current)
+  Ok(Some(current))
 }
 
 ///|
@@ -370,7 +370,15 @@ pub fn Response::validate_contract(
             }
           }
           match json_value_at(parsed, tokens) {
-            None =>
+            Err(_) =>
+              add_contract_violation(
+                violations,
+                InvalidJsonPathViolation,
+                field.path,
+                "valid array index",
+                "invalid array index",
+              )
+            Ok(None) =>
               add_contract_violation(
                 violations,
                 MissingJsonFieldViolation,
@@ -378,7 +386,7 @@ pub fn Response::validate_contract(
                 field.expected_kind.label(),
                 "missing",
               )
-            Some(value) => {
+            Ok(Some(value)) => {
               let actual = json_value_kind(value)
               if actual != field.expected_kind {
                 add_contract_violation(
@@ -407,8 +415,16 @@ pub fn Response::validate_contract(
             }
           }
           match json_value_at(parsed, tokens) {
-            None => ()
-            Some(value) => {
+            Err(_) =>
+              add_contract_violation(
+                violations,
+                InvalidJsonPathViolation,
+                field.path,
+                "valid array index",
+                "invalid array index",
+              )
+            Ok(None) => ()
+            Ok(Some(value)) => {
               let actual = json_value_kind(value)
               if actual != field.expected_kind {
                 add_contract_violation(
@@ -437,7 +453,15 @@ pub fn Response::validate_contract(
             }
           }
           match json_value_at(parsed, tokens) {
-            None =>
+            Err(_) =>
+              add_contract_violation(
+                violations,
+                InvalidJsonPathViolation,
+                rule.path,
+                "valid array index",
+                "invalid array index",
+              )
+            Ok(None) =>
               add_contract_violation(
                 violations,
                 MissingJsonFieldViolation,
@@ -445,7 +469,7 @@ pub fn Response::validate_contract(
                 "array",
                 "missing",
               )
-            Some(Array(items)) => {
+            Ok(Some(Array(items))) => {
               let mut index = 0
               for item in items {
                 let actual = json_value_kind(item)
@@ -461,7 +485,7 @@ pub fn Response::validate_contract(
                 index += 1
               }
             }
-            Some(other) =>
+            Ok(Some(other)) =>
               add_contract_violation(
                 violations,
                 JsonTypeViolation,

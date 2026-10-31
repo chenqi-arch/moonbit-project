@@ -1,5 +1,5 @@
 ///|
-/// Query order and fragments must not create separate cassette keys.
+/// Different query names may be reordered; fragments never participate.
 test "normalizes url query and fragment" {
   assert_eq(
     normalize_url("https://example.test/items?b=2&a=1#debug"),
@@ -55,7 +55,7 @@ test "can ignore request body" {
 test "normalizes bare and duplicate query pairs deterministically" {
   assert_eq(
     normalize_url("https://example.test/items?b&a=2&a=1"),
-    "https://example.test/items?b=&a=1&a=2",
+    "https://example.test/items?a=2&a=1&b=",
   )
 }
 
